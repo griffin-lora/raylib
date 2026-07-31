@@ -533,6 +533,8 @@ const char *TextFormat(const char *text, ...); // Formatting of text with variab
     #include "platforms/rcore_android.c"
 #elif defined(PLATFORM_MEMORY)
     #include "platforms/rcore_memory.c"
+#elif defined(PLATFORM_DESKTOP_VULKAN)
+    #include "platforms/rcore_desktop_vulkan.c"
 #else
     // TODO: Include your custom platform backend!
     // i.e software rendering backend or console backend!
@@ -589,7 +591,7 @@ const char *TextFormat(const char *text, ...); // Formatting of text with variab
 // Initialize window and OpenGL context
 void InitWindow(int width, int height, const char *title)
 {
-    TRACELOG(LOG_INFO, "Initializing raylib %s", RAYLIB_VERSION);
+    TRACELOG(LOG_INFO, "TEST Initializing raylib %s", RAYLIB_VERSION);
 
 #if defined(PLATFORM_DESKTOP_GLFW)
     TRACELOG(LOG_INFO, "Platform backend: DESKTOP (GLFW)");

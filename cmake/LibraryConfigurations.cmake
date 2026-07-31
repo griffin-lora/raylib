@@ -196,6 +196,15 @@ elseif ("${PLATFORM}" STREQUAL "SDL")
 		endif()
 	endif()	
 
+elseif ("${PLATFORM}" STREQUAL "Vulkan")
+    message(STATUS "Using Vulkan platform")
+	find_package(Vulkan REQUIRED)
+    set(LIBS_PUBLIC Vulkan::Vulkan)
+    set(LIBS_PRIVATE ${LIBS_PRIVATE} glfw)
+    set(RAYLIB_DEPENDENCIES "${RAYLIB_DEPENDENCIES}\nfind_dependency(Vulkan REQUIRED)")
+    set(PLATFORM_CPP "PLATFORM_DESKTOP_VULKAN")
+    add_compile_definitions(USING_VULKAN_PACKAGE)
+
 elseif ("${PLATFORM}" STREQUAL "RGFW")
     set(PLATFORM_CPP "PLATFORM_DESKTOP_RGFW")
 
