@@ -57,7 +57,7 @@ int main(void)
     //     //----------------------------------------------------------------------------------
         BeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            ClearBackground(RED);
 
     //     //     DrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);
 

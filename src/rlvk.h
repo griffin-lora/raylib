@@ -539,6 +539,8 @@ RLAPI double rlGetCullDistanceFar(void);                // Get cull plane distan
 //------------------------------------------------------------------------------------
 // Functions Declaration - Vertex level operations
 //------------------------------------------------------------------------------------
+RLAPI void rlBeginFrame(void);
+RLAPI void rlEndFrame(void);
 RLAPI void rlBegin(int mode);                           // Initialize drawing mode (how to organize vertex)
 RLAPI void rlEnd(void);                                 // Finish vertex providing
 RLAPI void rlVertex2i(int x, int y);                    // Define one vertex (position) - 2 int
@@ -934,12 +936,36 @@ static Matrix rlMatrixIdentity(void)
     return matIdentity;
 }
 
+static Matrix rlMatrixMultiply(Matrix left, Matrix right)
+{
+    Matrix result = { 0 };
+
+    result.m0 = left.m0*right.m0 + left.m1*right.m4 + left.m2*right.m8 + left.m3*right.m12;
+    result.m1 = left.m0*right.m1 + left.m1*right.m5 + left.m2*right.m9 + left.m3*right.m13;
+    result.m2 = left.m0*right.m2 + left.m1*right.m6 + left.m2*right.m10 + left.m3*right.m14;
+    result.m3 = left.m0*right.m3 + left.m1*right.m7 + left.m2*right.m11 + left.m3*right.m15;
+    result.m4 = left.m4*right.m0 + left.m5*right.m4 + left.m6*right.m8 + left.m7*right.m12;
+    result.m5 = left.m4*right.m1 + left.m5*right.m5 + left.m6*right.m9 + left.m7*right.m13;
+    result.m6 = left.m4*right.m2 + left.m5*right.m6 + left.m6*right.m10 + left.m7*right.m14;
+    result.m7 = left.m4*right.m3 + left.m5*right.m7 + left.m6*right.m11 + left.m7*right.m15;
+    result.m8 = left.m8*right.m0 + left.m9*right.m4 + left.m10*right.m8 + left.m11*right.m12;
+    result.m9 = left.m8*right.m1 + left.m9*right.m5 + left.m10*right.m9 + left.m11*right.m13;
+    result.m10 = left.m8*right.m2 + left.m9*right.m6 + left.m10*right.m10 + left.m11*right.m14;
+    result.m11 = left.m8*right.m3 + left.m9*right.m7 + left.m10*right.m11 + left.m11*right.m15;
+    result.m12 = left.m12*right.m0 + left.m13*right.m4 + left.m14*right.m8 + left.m15*right.m12;
+    result.m13 = left.m12*right.m1 + left.m13*right.m5 + left.m14*right.m9 + left.m15*right.m13;
+    result.m14 = left.m12*right.m2 + left.m13*right.m6 + left.m14*right.m10 + left.m15*right.m14;
+    result.m15 = left.m12*right.m3 + left.m13*right.m7 + left.m14*right.m11 + left.m15*right.m15;
+
+    return result;
+}
+
 #ifdef RLVK_ENABLE_VULKAN_VALIDATION_LAYER
 static VKAPI_ATTR VkBool32 VKAPI_CALL rlVulkanDebugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void* pUserData)
+    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+    void *pUserData)
 {
     if (messageSeverity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
@@ -958,34 +984,208 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL rlVulkanDebugCallback(
 // rlvk Implementation
 //----------------------------------------------------------------------------------
 
+void rlBeginFrame(void)
+{
+    vkWaitForFences(RLVK.device, 1, &RLVK.inFlightFence, VK_TRUE, UINT64_MAX);
+    vkResetFences(RLVK.device, 1, &RLVK.inFlightFence);
+
+    vkAcquireNextImageKHR(RLVK.device, RLVK.swapChain, UINT64_MAX, RLVK.imageAvailableSemaphore, VK_NULL_HANDLE, &RLVK.imageIndex);
+
+    vkResetCommandBuffer(RLVK.commandBuffer, 0);
+
+    VkCommandBufferBeginInfo beginInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0, //Optional
+        .pInheritanceInfo = 0 //Optional
+    };
+
+    if (vkBeginCommandBuffer(RLVK.commandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
+        return;
+    }
+
+    VkClearValue clearValue = { 0 };
+
+    VkRenderPassBeginInfo renderPassInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = RLVK.renderPass,
+        .framebuffer = RLVK.swapChainFramebuffers[RLVK.imageIndex],
+        .renderArea.offset = { 0, 0 },
+        .renderArea.extent = RLVK.swapChainExtent,
+
+        //TODO: It is possible to clear screen on render pass begin, this can be useful
+        .clearValueCount = 1,
+        .pClearValues = &clearValue
+    };
+
+    vkCmdBeginRenderPass(RLVK.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(RLVK.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.graphicsPipeline);
+
+    vkCmdSetViewport(RLVK.commandBuffer, 0, 1, &RLVK.viewport);
+    vkCmdSetScissor(RLVK.commandBuffer, 0, 1, &RLVK.scissor);
+
+}
+
+void rlEndFrame(void)
+{
+    vkCmdEndRenderPass(RLVK.commandBuffer);
+
+    if (vkEndCommandBuffer(RLVK.commandBuffer) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
+        return;
+    }
+
+    VkSemaphore waitSemaphores[] = { RLVK.imageAvailableSemaphore };
+    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    VkSemaphore signalSemaphores[] = { RLVK.renderFinishedSemaphore };
+
+    VkSubmitInfo submitInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = waitSemaphores,
+        .pWaitDstStageMask = waitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &RLVK.commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = signalSemaphores
+    };
+
+    if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.inFlightFence) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to submit draw command buffer");
+        return;
+    }
+
+    VkSwapchainKHR swapChains[] = { RLVK.swapChain };
+
+    VkPresentInfoKHR presentInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = signalSemaphores,
+        .swapchainCount = 1,
+        .pSwapchains = swapChains,
+        .pImageIndices = &RLVK.imageIndex,
+        presentInfo.pResults = 0 //Optional
+    };
+
+    vkQueuePresentKHR(RLVK.presentQueue, &presentInfo);
+}
+
 RLAPI void rlMatrixMode(int mode)                       // Choose the current matrix to be transformed 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlMatrixMode was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlMatrixMode was called.");
+
+    if (mode == RL_PROJECTION) RLVK.State.currentMatrix = &RLVK.State.projection;
+    else if (mode == RL_MODELVIEW) RLVK.State.currentMatrix = &RLVK.State.modelview;
+    //else if (mode == RL_TEXTURE) // Not supported
+
+    RLVK.State.currentMatrixMode = mode;
 }
 
 RLAPI void rlPushMatrix(void)                           // Push the current matrix to stack 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlPushMatrix was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlPushMatrix was called.");
+
+    if (RLVK.State.stackCounter >= RL_MAX_MATRIX_STACK_SIZE) TRACELOG(RL_LOG_ERROR, "RLGL: Matrix stack overflow (RL_MAX_MATRIX_STACK_SIZE)");
+
+    if (RLVK.State.currentMatrixMode == RL_MODELVIEW)
+    {
+        RLVK.State.transformRequired = true;
+        RLVK.State.currentMatrix = &RLVK.State.transform;
+    }
+
+    RLVK.State.stack[RLVK.State.stackCounter] = *RLVK.State.currentMatrix;
+    RLVK.State.stackCounter++;
 }
 
 RLAPI void rlPopMatrix(void)                            // Pop latest inserted matrix from stack 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlPopMatrix was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlPopMatrix was called.");
+
+    if (RLVK.State.stackCounter > 0)
+    {
+        Matrix mat = RLVK.State.stack[RLVK.State.stackCounter - 1];
+        *RLVK.State.currentMatrix = mat;
+        RLVK.State.stackCounter--;
+    }
+
+    if ((RLVK.State.stackCounter == 0) && (RLVK.State.currentMatrixMode == RL_MODELVIEW))
+    {
+        RLVK.State.currentMatrix = &RLVK.State.modelview;
+        RLVK.State.transformRequired = false;
+    }
 }
 
 RLAPI void rlLoadIdentity(void)                         // Reset current matrix to identity matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadIdentity was called.");
+    *RLVK.State.currentMatrix = rlMatrixIdentity();
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlLoadIdentity was called.");
 }
 
 RLAPI void rlTranslatef(float x, float y, float z)      // Multiply the current matrix by a translation matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlTranslatef was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlTranslatef was called.");
+
+    Matrix matTranslation = {
+        1.0f, 0.0f, 0.0f, x,
+        0.0f, 1.0f, 0.0f, y,
+        0.0f, 0.0f, 1.0f, z,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+
+    // NOTE: We transpose matrix with multiplication order
+    *RLVK.State.currentMatrix = rlMatrixMultiply(matTranslation, *RLVK.State.currentMatrix);
 }
 
 RLAPI void rlRotatef(float angle, float x, float y, float z)  // Multiply the current matrix by a rotation matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlRotatef was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlRotatef was called.");
+
+    Matrix matRotation = rlMatrixIdentity();
+
+    // Axis vector (x, y, z) normalization
+    float lengthSquared = x*x + y*y + z*z;
+    if ((lengthSquared != 1.0f) && (lengthSquared != 0.0f))
+    {
+        float inverseLength = 1.0f/sqrtf(lengthSquared);
+        x *= inverseLength;
+        y *= inverseLength;
+        z *= inverseLength;
+    }
+
+    // Rotation matrix generation
+    float sinres = sinf(DEG2RAD*angle);
+    float cosres = cosf(DEG2RAD*angle);
+    float t = 1.0f - cosres;
+
+    matRotation.m0 = x*x*t + cosres;
+    matRotation.m1 = y*x*t + z*sinres;
+    matRotation.m2 = z*x*t - y*sinres;
+    matRotation.m3 = 0.0f;
+
+    matRotation.m4 = x*y*t - z*sinres;
+    matRotation.m5 = y*y*t + cosres;
+    matRotation.m6 = z*y*t + x*sinres;
+    matRotation.m7 = 0.0f;
+
+    matRotation.m8 = x*z*t + y*sinres;
+    matRotation.m9 = y*z*t - x*sinres;
+    matRotation.m10 = z*z*t + cosres;
+    matRotation.m11 = 0.0f;
+
+    matRotation.m12 = 0.0f;
+    matRotation.m13 = 0.0f;
+    matRotation.m14 = 0.0f;
+    matRotation.m15 = 1.0f;
+
+    // NOTE: We transpose matrix with multiplication order
+    *RLVK.State.currentMatrix = rlMatrixMultiply(matRotation, *RLVK.State.currentMatrix);
 }
 
 RLAPI void rlScalef(float x, float y, float z)          // Multiply the current matrix by a scaling matrix 
@@ -995,17 +1195,80 @@ RLAPI void rlScalef(float x, float y, float z)          // Multiply the current 
 
 RLAPI void rlMultMatrixf(const float *matf)             // Multiply the current matrix by another matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlMultMatrixf was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlMultMatrixf was called.");
+
+        // Matrix creation from array
+    Matrix mat = { matf[0], matf[4], matf[8], matf[12],
+                   matf[1], matf[5], matf[9], matf[13],
+                   matf[2], matf[6], matf[10], matf[14],
+                   matf[3], matf[7], matf[11], matf[15] };
+
+    *RLVK.State.currentMatrix = rlMatrixMultiply(*RLVK.State.currentMatrix, mat);
 }
 
 RLAPI void rlFrustum(double left, double right, double bottom, double top, double znear, double zfar)  
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlFrustum was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlFrustum was called.");
+
+    Matrix matFrustum = { 0 };
+
+    float rl = (float)(right - left);
+    float tb = (float)(top - bottom);
+    float fn = (float)(zfar - znear);
+
+    matFrustum.m0 = ((float) znear*2.0f)/rl;
+    matFrustum.m1 = 0.0f;
+    matFrustum.m2 = 0.0f;
+    matFrustum.m3 = 0.0f;
+
+    matFrustum.m4 = 0.0f;
+    matFrustum.m5 = ((float) znear*2.0f)/tb;
+    matFrustum.m6 = 0.0f;
+    matFrustum.m7 = 0.0f;
+
+    matFrustum.m8 = ((float)right + (float)left)/rl;
+    matFrustum.m9 = ((float)top + (float)bottom)/tb;
+    matFrustum.m10 = -((float)zfar + (float)znear)/fn;
+    matFrustum.m11 = -1.0f;
+
+    matFrustum.m12 = 0.0f;
+    matFrustum.m13 = 0.0f;
+    matFrustum.m14 = -((float)zfar*(float)znear*2.0f)/fn;
+    matFrustum.m15 = 0.0f;
+
+    *RLVK.State.currentMatrix = rlMatrixMultiply(*RLVK.State.currentMatrix, matFrustum);
 }
 
 RLAPI void rlOrtho(double left, double right, double bottom, double top, double znear, double zfar)  
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlOrtho was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlOrtho was called.");
+
+    // NOTE: If left-right and top-botton values are equal it could create a division by zero,
+    // response to it is platform/compiler dependant
+    Matrix matOrtho = { 0 };
+
+    float rl = (float)(right - left);
+    float tb = (float)(top - bottom);
+    float fn = (float)(zfar - znear);
+
+    matOrtho.m0 = 2.0f/rl;
+    matOrtho.m1 = 0.0f;
+    matOrtho.m2 = 0.0f;
+    matOrtho.m3 = 0.0f;
+    matOrtho.m4 = 0.0f;
+    matOrtho.m5 = 2.0f/tb;
+    matOrtho.m6 = 0.0f;
+    matOrtho.m7 = 0.0f;
+    matOrtho.m8 = 0.0f;
+    matOrtho.m9 = 0.0f;
+    matOrtho.m10 = -2.0f/fn;
+    matOrtho.m11 = 0.0f;
+    matOrtho.m12 = -((float)left + (float)right)/rl;
+    matOrtho.m13 = -((float)top + (float)bottom)/tb;
+    matOrtho.m14 = -((float)zfar + (float)znear)/fn;
+    matOrtho.m15 = 1.0f;
+
+    *RLVK.State.currentMatrix = rlMatrixMultiply(*RLVK.State.currentMatrix, matOrtho);
 }
 
 RLAPI void rlViewport(int x, int y, int width, int height)  // Set the viewport area 
@@ -1038,6 +1301,8 @@ RLAPI void rlBegin(int mode)                            // Initialize drawing mo
 RLAPI void rlEnd(void)                                  // Finish vertex providing 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlEnd was called.");
+
+    RLVK.currentBatch->currentDepth += (1.0f/20000.0f);
 }
 
 RLAPI void rlVertex2i(int x, int y)                     // Define one vertex (position) - 2 int 
@@ -1048,26 +1313,97 @@ RLAPI void rlVertex2i(int x, int y)                     // Define one vertex (po
 RLAPI void rlVertex2f(float x, float y)                 // Define one vertex (position) - 2 float 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex2f was called.");
+
+    rlVertex3f(x, y, RLVK.currentBatch->currentDepth);
 }
 
 RLAPI void rlVertex3f(float x, float y, float z)        // Define one vertex (position) - 3 float 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex3f was called.");
+
+    float tx = x;
+    float ty = y;
+    float tz = z;
+
+    // Transform provided vector if required
+    if (RLVK.State.transformRequired)
+    {
+        tx = RLVK.State.transform.m0*x + RLVK.State.transform.m4*y + RLVK.State.transform.m8*z + RLVK.State.transform.m12;
+        ty = RLVK.State.transform.m1*x + RLVK.State.transform.m5*y + RLVK.State.transform.m9*z + RLVK.State.transform.m13;
+        tz = RLVK.State.transform.m2*x + RLVK.State.transform.m6*y + RLVK.State.transform.m10*z + RLVK.State.transform.m14;
+    }
+
+    // WARNING: We can't break primitives when launching a new batch.
+    // RL_LINES comes in pairs, RL_TRIANGLES come in groups of 3 vertices and RL_QUADS come in groups of 4 vertices.
+    // We must check current draw.mode when a new vertex is required and finish the batch only if the draw.mode draw.vertexCount is %2, %3 or %4
+    if (RLVK.State.vertexCounter > (RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].elementCount*4 - 4))
+    {
+        if ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_LINES) &&
+            (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount%2 == 0))
+        {
+            // Reached the maximum number of vertices for RL_LINES drawing
+            // Launch a draw call but keep current state for next vertices comming
+            // NOTE: We add +1 vertex to the check for security
+            rlCheckRenderBatchLimit(2 + 1);
+        }
+        else if ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_TRIANGLES) &&
+            (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount%3 == 0))
+        {
+            rlCheckRenderBatchLimit(3 + 1);
+        }
+        else if ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_QUADS) &&
+            (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount%4 == 0))
+        {
+            rlCheckRenderBatchLimit(4 + 1);
+        }
+    }
+
+    // Add vertices
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].vertices[3*RLVK.State.vertexCounter] = tx;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].vertices[3*RLVK.State.vertexCounter + 1] = ty;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].vertices[3*RLVK.State.vertexCounter + 2] = tz;
+
+    // Add current texcoord
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].texcoords[2*RLVK.State.vertexCounter] = RLVK.State.texcoordx;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].texcoords[2*RLVK.State.vertexCounter + 1] = RLVK.State.texcoordy;
+
+    // WARNING: By default rlVertexBuffer struct does not store normals
+
+    // Add current color
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].colors[4*RLVK.State.vertexCounter] = RLVK.State.colorr;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].colors[4*RLVK.State.vertexCounter + 1] = RLVK.State.colorg;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].colors[4*RLVK.State.vertexCounter + 2] = RLVK.State.colorb;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].colors[4*RLVK.State.vertexCounter + 3] = RLVK.State.colora;
+
+    RLVK.State.vertexCounter++;
+    RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount++;
 }
 
 RLAPI void rlTexCoord2f(float x, float y)               // Define one vertex (texture coordinate) - 2 float 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlTexCoord2f was called.");
+
+    RLVK.State.texcoordx = x;
+    RLVK.State.texcoordy = y;
 }
 
 RLAPI void rlNormal3f(float x, float y, float z)        // Define one vertex (normal) - 3 float 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlNormal3f was called.");
+
+    RLVK.State.normalx = x;
+    RLVK.State.normaly = y;
+    RLVK.State.normalz = z;
 }
 
 RLAPI void rlColor4ub(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Define one vertex (color) - 4 byte 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlColor4ub was called.");
+
+    RLVK.State.colorr = r;
+    RLVK.State.colorg = g;
+    RLVK.State.colorb = b;
+    RLVK.State.colora = a;
 }
 
 RLAPI void rlColor3f(float x, float y, float z)         // Define one vertex (color) - 3 float 
@@ -1343,11 +1679,45 @@ RLAPI bool rlIsStereoRenderEnabled(void)                // Check if stereo rende
 RLAPI void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Clear color buffer with color 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlClearColor was called.");
+    
+    //TODO: Set clear color
+    RLVK.clearColor = (VkClearColorValue)
+    {
+        ((float)r)/255.0f,
+        ((float)g)/255.0f,
+        ((float)b)/255.0f,
+        ((float)a)/255.0f
+    };
 }
 
 RLAPI void rlClearScreenBuffers(void)                   // Clear used screen buffers (color and depth) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlClearScreenBuffers was called.");
+
+    VkImageSubresourceRange subResourceRange =
+    {
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel = 0,
+		.levelCount = 1,
+		.baseArrayLayer = 0,
+		.layerCount = 1
+    };
+
+    VkClearAttachment clearAttachment =
+    {
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .colorAttachment = 0,
+        .clearValue.color = RLVK.clearColor
+    };
+
+    VkClearRect clearRect =
+    {
+        .rect = RLVK.scissor,
+        .baseArrayLayer = 0,
+        .layerCount = 1
+    };
+
+    vkCmdClearAttachments(RLVK.commandBuffer, 1, &clearAttachment, 1, &clearRect);
 }
 
 RLAPI void rlCheckErrors(void)                          // Check and log OpenGL error codes 
@@ -1372,7 +1742,6 @@ RLAPI void rlSetBlendFactorsSeparate(int glSrcRGB, int glDstRGB, int glSrcAlpha,
 
 RLAPI void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // Initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlvkInit was called.");
     VkApplicationInfo appInfo = 
     {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -2293,7 +2662,51 @@ RLAPI void rlvkInit(int width, int height, GLFWwindow *windowHandle)            
 
 RLAPI void rlvkClose(void)                              // De-initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlvkClose was called.");
+    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlvkClose was called.");
+
+    vkDeviceWaitIdle(RLVK.device);
+
+    vkDestroySemaphore(RLVK.device, RLVK.imageAvailableSemaphore, 0);
+    vkDestroySemaphore(RLVK.device, RLVK.renderFinishedSemaphore, 0);
+    vkDestroyFence(RLVK.device, RLVK.inFlightFence, 0);
+
+    vkDestroyCommandPool(RLVK.device, RLVK.commandPool, 0);
+
+    for (uint32_t i = 0; i < RLVK.swapChainImageCount; ++i)
+    {
+        vkDestroyFramebuffer(RLVK.device, RLVK.swapChainFramebuffers[i], 0);
+    }
+    
+    RL_FREE(RLVK.swapChainFramebuffers);
+
+    vkDestroyPipeline(RLVK.device, RLVK.graphicsPipeline, 0);
+    vkDestroyPipelineLayout(RLVK.device, RLVK.pipelineLayout, 0);
+    vkDestroyRenderPass(RLVK.device, RLVK.renderPass, 0);
+
+    for (uint32_t i = 0; i < RLVK.swapChainImageCount; ++i)
+    {
+        vkDestroyImageView(RLVK.device, RLVK.swapChainImageViews[i], 0);
+    }
+
+    RL_FREE(RLVK.swapChainImageViews);
+    
+    vkDestroySwapchainKHR(RLVK.device, RLVK.swapChain, 0);
+    vkDestroySurfaceKHR(RLVK.vkInstance, RLVK.surface, 0);
+    vkDestroyDevice(RLVK.device, 0);
+
+#ifdef RLVK_ENABLE_VULKAN_VALIDATION_LAYER
+    PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = 
+        (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(RLVK.vkInstance, "vkDestroyDebugUtilsMessengerEXT");
+
+    if (vkDestroyDebugUtilsMessengerEXT == 0)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to get vkDestroyDebugUtilsMessengerEXT. Vulkan validation layers are probably not supported on this machine.");
+    }
+
+    vkDestroyDebugUtilsMessengerEXT(RLVK.vkInstance, RLVK.debugMessenger, 0);
+#endif
+    
+    vkDestroyInstance(RLVK.vkInstance, 0);
 }
 
 RLAPI void rlLoadExtensions(void *loader)               // Load OpenGL extensions (loader function required) 
@@ -2344,13 +2757,17 @@ RLAPI unsigned int rlGetTextureIdDefault(void)          // Get default texture i
 RLAPI unsigned int rlGetShaderIdDefault(void)           // Get default shader id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderIdDefault was called.");
-	return 0;
+
+	return RLVK.State.defaultShaderId;
 }
 
 RLAPI int *rlGetShaderLocsDefault(void)                 // Get default shader locations 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderLocsDefault was called.");
-	return NULL;
+
+	int *locs = NULL;
+    locs = RLVK.State.defaultShaderLocs;
+    return locs;
 }
 
 RLAPI rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a render batch system 
@@ -2382,7 +2799,26 @@ RLAPI void rlDrawRenderBatchActive(void)                // Update and draw inter
 RLAPI bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overflow for a given number of vertex 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlCheckRenderBatchLimit was called.");
-	return false;
+
+	bool overflow = false;
+
+    if ((RLVK.State.vertexCounter + vCount) >=
+        (RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].elementCount*4))
+    {
+        overflow = true;
+
+        // Store current primitive drawing mode and texture id
+        int currentMode = RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode;
+        int currentTexture = RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureId;
+
+        rlDrawRenderBatch(RLVK.currentBatch);    // NOTE: Stereo rendering is checked inside
+
+        // Restore state of last batch so we can continue adding vertices
+        RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode = currentMode;
+        RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureId = currentTexture;
+    }
+
+    return overflow;
 }
 
 RLAPI void rlSetTexture(unsigned int id)                // Set current texture for render batch and check buffers limits 
@@ -2494,7 +2930,32 @@ RLAPI void rlGetGlTextureFormats(int format, unsigned int *glInternalFormat, uns
 RLAPI const char *rlGetPixelFormatName(unsigned int format)               // Get name string for pixel format 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetPixelFormatName was called.");
-	return NULL;
+	
+    switch (format)
+    {
+        case RL_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE: return "GRAYSCALE"; break;         // 8 bit per pixel (no alpha)
+        case RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: return "GRAY_ALPHA"; break;       // 8*2 bpp (2 channels)
+        case RL_PIXELFORMAT_UNCOMPRESSED_R5G6B5: return "R5G6B5"; break;               // 16 bpp
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8: return "R8G8B8"; break;               // 24 bpp
+        case RL_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1: return "R5G5B5A1"; break;           // 16 bpp (1 bit alpha)
+        case RL_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4: return "R4G4B4A4"; break;           // 16 bpp (4 bit alpha)
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return "R8G8B8A8"; break;           // 32 bpp
+        case RL_PIXELFORMAT_UNCOMPRESSED_R32: return "R32"; break;                     // 32 bpp (1 channel - float)
+        case RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32: return "R32G32B32"; break;         // 32*3 bpp (3 channels - float)
+        case RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32: return "R32G32B32A32"; break;   // 32*4 bpp (4 channels - float)
+        case RL_PIXELFORMAT_COMPRESSED_DXT1_RGB: return "DXT1_RGB"; break;             // 4 bpp (no alpha)
+        case RL_PIXELFORMAT_COMPRESSED_DXT1_RGBA: return "DXT1_RGBA"; break;           // 4 bpp (1 bit alpha)
+        case RL_PIXELFORMAT_COMPRESSED_DXT3_RGBA: return "DXT3_RGBA"; break;           // 8 bpp
+        case RL_PIXELFORMAT_COMPRESSED_DXT5_RGBA: return "DXT5_RGBA"; break;           // 8 bpp
+        case RL_PIXELFORMAT_COMPRESSED_ETC1_RGB: return "ETC1_RGB"; break;             // 4 bpp
+        case RL_PIXELFORMAT_COMPRESSED_ETC2_RGB: return "ETC2_RGB"; break;             // 4 bpp
+        case RL_PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA: return "ETC2_RGBA"; break;       // 8 bpp
+        case RL_PIXELFORMAT_COMPRESSED_PVRT_RGB: return "PVRT_RGB"; break;             // 4 bpp
+        case RL_PIXELFORMAT_COMPRESSED_PVRT_RGBA: return "PVRT_RGBA"; break;           // 4 bpp
+        case RL_PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA: return "ASTC_4x4_RGBA"; break;   // 8 bpp
+        case RL_PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA: return "ASTC_8x8_RGBA"; break;   // 2 bpp
+        default: return "UNKNOWN"; break;
+    }
 }
 
 RLAPI void rlUnloadTexture(unsigned int id)                               // Unload texture from GPU memory 

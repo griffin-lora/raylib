@@ -903,6 +903,10 @@ void BeginDrawing(void)
     CORE.Time.update = CORE.Time.current - CORE.Time.previous;
     CORE.Time.previous = CORE.Time.current;
 
+#ifdef USING_RLVK
+    rlBeginFrame();
+#endif
+
     rlLoadIdentity();                   // Reset current matrix (modelview)
     rlMultMatrixf(MatrixToFloat(CORE.Window.screenScale)); // Apply screen scaling
 
@@ -917,6 +921,10 @@ void EndDrawing(void)
 
 #if SUPPORT_AUTOMATION_EVENTS
     if (automationEventRecording) RecordAutomationEvent();    // Event recording
+#endif
+
+#ifdef USING_RLVK
+    rlEndFrame();
 #endif
 
 #if !SUPPORT_CUSTOM_FRAME_CONTROL
