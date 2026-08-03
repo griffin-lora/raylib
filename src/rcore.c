@@ -128,6 +128,7 @@
     #define RLGL_IMPLEMENTATION
     #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 #else
+    #define USING_RLVK
     #define RLVK_IMPLEMENTATION
     #include "rlvk.h"
 #endif
@@ -694,11 +695,11 @@ void InitWindow(int width, int height, const char *title)
 
     // Initialize rlgl default data (buffers and shaders)
     // NOTE: Current fbo size stored as globals in rlgl for convenience
-    #ifndef PLATFORM_DESKTOP_VULKAN
-        rlglInit(CORE.Window.render.width, CORE.Window.render.height);
-    #else
-        rlvkInit(CORE.Window.render.width, CORE.Window.render.height);
-    #endif
+#ifdef USING_RLVK
+    rlvkInit(CORE.Window.render.width, CORE.Window.render.height);
+#else
+    rlglInit(CORE.Window.render.width, CORE.Window.render.height);
+#endif
 
     // Setup default viewport
     SetupViewport(CORE.Window.render.width, CORE.Window.render.height);
@@ -751,7 +752,11 @@ void CloseWindow(void)
     UnloadFontDefault();        // WARNING: Module required: rtext
 #endif
 
+#ifdef USING_RLVK
+    rlvkClose();                // De-init rlvk
+#else
     rlglClose();                // De-init rlgl
+#endif
 
     // De-initialize platform
     //--------------------------------------------------------------
