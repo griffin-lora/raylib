@@ -48,15 +48,16 @@ endif ()
 # into a CMake variable
 set(example_sources)
 set(example_resources)
-foreach (example_dir ${example_dirs})
-    # Get the .c files
-    file(GLOB sources ${example_dir}/*.c)
-    list(APPEND example_sources ${sources})
+# foreach (example_dir ${example_dirs})
+#     # Get the .c files
+#     file(GLOB sources ${example_dir}/*.c)
+#     list(APPEND example_sources ${sources})
 
-    # Any any resources
-    file(GLOB resources ${example_dir}/resources/*)
-    list(APPEND example_resources ${resources})
-endforeach ()
+#     # Any any resources
+#     file(GLOB resources ${example_dir}/resources/*)
+#     list(APPEND example_resources ${resources})
+# endforeach ()
+list(APPEND example_sources core/core_basic_window.c)
 
 if(NOT CMAKE_USE_PTHREADS_INIT OR NOT HAVE_STDATOMIC_H)
     # Items requiring pthreads

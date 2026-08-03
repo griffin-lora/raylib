@@ -17,6 +17,8 @@
 *           - Linux (X11/Wayland desktop mode)
 *           - macOS/OSX (x64, arm64)
 *           - Others (not tested)
+*       > PLATFORM_DESKTOP_VULKAN (GLFW + Vulkan backend):
+*           - Linux (X11 desktop mode)
 *       > PLATFORM_DESKTOP_WIN32 (native Win32):
 *           - Windows (Win32, Win64)
 *       > PLATFORM_WEB (GLFW + Emscripten):
@@ -121,8 +123,14 @@
 #if defined(PLATFORM_MEMORY) || defined(PLATFORM_WEB)
     #define SW_GL_FRAMEBUFFER_COPY_BGRA false
 #endif
-#define RLGL_IMPLEMENTATION
-#include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
+
+#ifndef PLATFORM_DESKTOP_VULKAN
+    #define RLGL_IMPLEMENTATION
+    #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
+#else
+    #define RLVK_IMPLEMENTATION
+    #include "rlvk.h"
+#endif
 
 #define RAYMATH_IMPLEMENTATION
 #include "raymath.h"                // Vector2, Vector3, Quaternion and Matrix functionality
@@ -591,7 +599,7 @@ const char *TextFormat(const char *text, ...); // Formatting of text with variab
 // Initialize window and OpenGL context
 void InitWindow(int width, int height, const char *title)
 {
-    TRACELOG(LOG_INFO, "TEST Initializing raylib %s", RAYLIB_VERSION);
+    TRACELOG(LOG_INFO, "Initializing raylib %s", RAYLIB_VERSION);
 
 #if defined(PLATFORM_DESKTOP_GLFW)
     TRACELOG(LOG_INFO, "Platform backend: DESKTOP (GLFW)");
@@ -611,6 +619,8 @@ void InitWindow(int width, int height, const char *title)
     TRACELOG(LOG_INFO, "Platform backend: ANDROID");
 #elif defined(PLATFORM_MEMORY)
     TRACELOG(LOG_INFO, "Platform backend: MEMORY (No OS)");
+#elif defined(PLATFORM_DESKTOP_VULKAN)
+    TRACELOG(LOG_INFO, "Platform backend: DESKTOP (Vulkan)");
 #else
     // TODO: Include your custom platform backend!
     // i.e software rendering backend or console backend!
@@ -684,7 +694,11 @@ void InitWindow(int width, int height, const char *title)
 
     // Initialize rlgl default data (buffers and shaders)
     // NOTE: Current fbo size stored as globals in rlgl for convenience
-    rlglInit(CORE.Window.render.width, CORE.Window.render.height);
+    #ifndef PLATFORM_DESKTOP_VULKAN
+        rlglInit(CORE.Window.render.width, CORE.Window.render.height);
+    #else
+        rlvkInit(CORE.Window.render.width, CORE.Window.render.height);
+    #endif
 
     // Setup default viewport
     SetupViewport(CORE.Window.render.width, CORE.Window.render.height);

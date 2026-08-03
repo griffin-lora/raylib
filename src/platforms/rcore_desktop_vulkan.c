@@ -1455,6 +1455,9 @@ int InitPlatform(void)
 
     glfwInitAllocator(&allocator);
 
+    // TODO: Properly handle this
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+
 #if defined(__APPLE__)
     glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
 #endif
@@ -1479,27 +1482,6 @@ int InitPlatform(void)
     // additionally auto iconify restores the hardware resolution of the monitor if the window that loses focus is a fullscreen window
     glfwWindowHint(GLFW_AUTO_ICONIFY, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-    uint32_t numGlfwRequiredExtensionNames;
-    const char** glfwRequiredExtensionNames = glfwGetRequiredInstanceExtensions(&numGlfwRequiredExtensionNames);
-    
-    VkInstance instance;
-
-    vkCreateInstance(&(VkInstanceCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pApplicationInfo = &(VkApplicationInfo) {
-            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .pApplicationName = "Raylib Vulkan",
-            .applicationVersion = VK_MAKE_VERSION(0, 0, 1),
-            .pEngineName = "No Engine",
-            .engineVersion = VK_MAKE_VERSION(0, 0, 1),
-            .apiVersion = VK_API_VERSION_1_4
-        },
-        .enabledLayerCount = 0,
-        .ppEnabledLayerNames = NULL,
-        .enabledExtensionCount = numGlfwRequiredExtensionNames,
-        .ppEnabledExtensionNames = glfwRequiredExtensionNames
-    }, NULL, &instance);
 
     // Window flags requested before initialization to be applied after initialization
     unsigned int requestedWindowFlags = CORE.Window.flags;
@@ -1566,54 +1548,6 @@ int InitPlatform(void)
         // NOTE: MSAA is only enabled for main framebuffer, not user-created FBOs
         TRACELOG(LOG_INFO, "DISPLAY: Trying to enable MSAA x4");
         glfwWindowHint(GLFW_SAMPLES, 4);   // Tries to enable multisampling x4 (MSAA), default is 0
-    }
-
-    // NOTE: When asking for an OpenGL context version, most drivers provide the highest supported version
-    // with backward compatibility to older OpenGL versions
-    // For example, if using OpenGL 1.1, driver can provide a 4.3 backwards compatible context
-
-    // Check selection OpenGL version
-    if (rlGetVersion() == RL_OPENGL_21)
-    {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);          // Choose OpenGL major version (just hint)
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);          // Choose OpenGL minor version (just hint)
-    }
-    else if (rlGetVersion() == RL_OPENGL_33)
-    {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);          // Choose OpenGL major version (just hint)
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);          // Choose OpenGL minor version (just hint)
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // Profiles Hint: Only 3.3 and above!
-                                                                       // Values: GLFW_OPENGL_CORE_PROFILE, GLFW_OPENGL_ANY_PROFILE, GLFW_OPENGL_COMPAT_PROFILE
-#if defined(__APPLE__)
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);  // OSX Requires forward compatibility
-#else
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE); // Forward Compatibility Hint: Only 3.3 and above!
-#endif
-        //glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE); // Request OpenGL DEBUG context
-    }
-    else if (rlGetVersion() == RL_OPENGL_43)
-    {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);          // Choose OpenGL major version (just hint)
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);          // Choose OpenGL minor version (just hint)
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE);
-#if RLGL_ENABLE_OPENGL_DEBUG_CONTEXT
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);   // Enable OpenGL Debug Context
-#endif
-    }
-    else if (rlGetVersion() == RL_OPENGL_ES_20)                 // Request OpenGL ES 2.0 context
-    {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-    }
-    else if (rlGetVersion() == RL_OPENGL_ES_30)                 // Request OpenGL ES 3.0 context
-    {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
     }
 
     // NOTE: GLFW 3.4+ defers initialization of the Joystick subsystem on the first call to any Joystick related functions
@@ -1727,7 +1661,6 @@ int InitPlatform(void)
         CORE.Window.render.height = CORE.Window.screen.height;
     }
 
-    glfwMakeContextCurrent(platform.handle);
     result = glfwGetError(NULL);
     if ((result != GLFW_NO_WINDOW_CONTEXT) && (result != GLFW_PLATFORM_ERROR)) CORE.Window.ready = true; // Checking context activation
 
