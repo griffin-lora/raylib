@@ -1165,7 +1165,7 @@ void DisableCursor(void)
 // Swap back buffer with front buffer (screen drawing)
 void SwapScreenBuffer(void)
 {
-    glfwSwapBuffers(platform.handle);
+    // TODO: Implement this? Not sure exactly how to go about this though
 }
 
 //----------------------------------------------------------------------------------
