@@ -828,857 +828,857 @@ static Matrix rlMatrixIdentity(void)
 
 RLAPI void rlMatrixMode(int mode)                       // Choose the current matrix to be transformed 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlMatrixMode was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlMatrixMode was called.");
 }
 
 RLAPI void rlPushMatrix(void)                           // Push the current matrix to stack 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlPushMatrix was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlPushMatrix was called.");
 }
 
 RLAPI void rlPopMatrix(void)                            // Pop latest inserted matrix from stack 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlPopMatrix was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlPopMatrix was called.");
 }
 
 RLAPI void rlLoadIdentity(void)                         // Reset current matrix to identity matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadIdentity was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadIdentity was called.");
 }
 
 RLAPI void rlTranslatef(float x, float y, float z)      // Multiply the current matrix by a translation matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlTranslatef was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlTranslatef was called.");
 }
 
 RLAPI void rlRotatef(float angle, float x, float y, float z)  // Multiply the current matrix by a rotation matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlRotatef was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlRotatef was called.");
 }
 
 RLAPI void rlScalef(float x, float y, float z)          // Multiply the current matrix by a scaling matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlScalef was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlScalef was called.");
 }
 
 RLAPI void rlMultMatrixf(const float *matf)             // Multiply the current matrix by another matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlMultMatrixf was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlMultMatrixf was called.");
 }
 
 RLAPI void rlFrustum(double left, double right, double bottom, double top, double znear, double zfar)  
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlFrustum was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlFrustum was called.");
 }
 
 RLAPI void rlOrtho(double left, double right, double bottom, double top, double znear, double zfar)  
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlOrtho was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlOrtho was called.");
 }
 
 RLAPI void rlViewport(int x, int y, int width, int height)  // Set the viewport area 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlViewport was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlViewport was called.");
 }
 
 RLAPI void rlSetClipPlanes(double nearPlane, double farPlane)     // Set clip planes distances 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetClipPlanes was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetClipPlanes was called.");
 }
 
 RLAPI double rlGetCullDistanceNear(void)                // Get cull plane distance near 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetCullDistanceNear was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetCullDistanceNear was called.");
 	return 0.0;
 }
 
 RLAPI double rlGetCullDistanceFar(void)                 // Get cull plane distance far 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetCullDistanceFar was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetCullDistanceFar was called.");
 	return 0.0;
 }
 
 RLAPI void rlBegin(int mode)                            // Initialize drawing mode (how to organize vertex) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlBegin was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlBegin was called.");
 }
 
 RLAPI void rlEnd(void)                                  // Finish vertex providing 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnd was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnd was called.");
 }
 
 RLAPI void rlVertex2i(int x, int y)                     // Define one vertex (position) - 2 int 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlVertex2i was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex2i was called.");
 }
 
 RLAPI void rlVertex2f(float x, float y)                 // Define one vertex (position) - 2 float 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlVertex2f was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex2f was called.");
 }
 
 RLAPI void rlVertex3f(float x, float y, float z)        // Define one vertex (position) - 3 float 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlVertex3f was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex3f was called.");
 }
 
 RLAPI void rlTexCoord2f(float x, float y)               // Define one vertex (texture coordinate) - 2 float 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlTexCoord2f was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlTexCoord2f was called.");
 }
 
 RLAPI void rlNormal3f(float x, float y, float z)        // Define one vertex (normal) - 3 float 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlNormal3f was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlNormal3f was called.");
 }
 
 RLAPI void rlColor4ub(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Define one vertex (color) - 4 byte 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlColor4ub was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlColor4ub was called.");
 }
 
 RLAPI void rlColor3f(float x, float y, float z)         // Define one vertex (color) - 3 float 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlColor3f was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlColor3f was called.");
 }
 
 RLAPI void rlColor4f(float x, float y, float z, float w)  // Define one vertex (color) - 4 float 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlColor4f was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlColor4f was called.");
 }
 
 RLAPI bool rlEnableVertexArray(unsigned int vaoId)      // Enable vertex array (VAO, if supported) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableVertexArray was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableVertexArray was called.");
 	return false;
 }
 
 RLAPI void rlDisableVertexArray(void)                   // Disable vertex array (VAO, if supported) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableVertexArray was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableVertexArray was called.");
 }
 
 RLAPI void rlEnableVertexBuffer(unsigned int id)        // Enable vertex buffer (VBO) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableVertexBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableVertexBuffer was called.");
 }
 
 RLAPI void rlDisableVertexBuffer(void)                  // Disable vertex buffer (VBO) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableVertexBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableVertexBuffer was called.");
 }
 
 RLAPI void rlEnableVertexBufferElement(unsigned int id)  // Enable vertex buffer element (VBO element) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableVertexBufferElement was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableVertexBufferElement was called.");
 }
 
 RLAPI void rlDisableVertexBufferElement(void)           // Disable vertex buffer element (VBO element) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableVertexBufferElement was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableVertexBufferElement was called.");
 }
 
 RLAPI void rlEnableVertexAttribute(unsigned int index)  // Enable vertex attribute index 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableVertexAttribute was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableVertexAttribute was called.");
 }
 
 RLAPI void rlDisableVertexAttribute(unsigned int index)  // Disable vertex attribute index 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableVertexAttribute was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableVertexAttribute was called.");
 }
 
 RLAPI void rlEnableStatePointer(int vertexAttribType, void *buffer)  // Enable attribute state pointer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableStatePointer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableStatePointer was called.");
 }
 
 RLAPI void rlDisableStatePointer(int vertexAttribType)  // Disable attribute state pointer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableStatePointer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableStatePointer was called.");
 }
 
 RLAPI void rlActiveTextureSlot(int slot)                // Select and active a texture slot 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlActiveTextureSlot was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlActiveTextureSlot was called.");
 }
 
 RLAPI void rlEnableTexture(unsigned int id)             // Enable texture 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableTexture was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableTexture was called.");
 }
 
 RLAPI void rlDisableTexture(void)                       // Disable texture 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableTexture was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableTexture was called.");
 }
 
 RLAPI void rlEnableTextureCubemap(unsigned int id)      // Enable texture cubemap 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableTextureCubemap was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableTextureCubemap was called.");
 }
 
 RLAPI void rlDisableTextureCubemap(void)                // Disable texture cubemap 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableTextureCubemap was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableTextureCubemap was called.");
 }
 
 RLAPI void rlTextureParameters(unsigned int id, int param, int value)  // Set texture parameters (filter, wrap) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlTextureParameters was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlTextureParameters was called.");
 }
 
 RLAPI void rlCubemapParameters(unsigned int id, int param, int value)  // Set cubemap parameters (filter, wrap) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlCubemapParameters was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlCubemapParameters was called.");
 }
 
 RLAPI void rlEnableShader(unsigned int id)              // Enable shader program 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableShader was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableShader was called.");
 }
 
 RLAPI void rlDisableShader(void)                        // Disable shader program 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableShader was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableShader was called.");
 }
 
 RLAPI void rlEnableFramebuffer(unsigned int id)         // Enable render texture (fbo) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableFramebuffer was called.");
 }
 
 RLAPI void rlDisableFramebuffer(void)                   // Disable render texture (fbo), return to default framebuffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableFramebuffer was called.");
 }
 
 RLAPI unsigned int rlGetActiveFramebuffer(void)         // Get the currently active render texture (fbo), 0 for default framebuffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetActiveFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetActiveFramebuffer was called.");
 	return 0;
 }
 
 RLAPI void rlActiveDrawBuffers(int count)               // Activate multiple draw color buffers 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlActiveDrawBuffers was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlActiveDrawBuffers was called.");
 }
 
 RLAPI void rlBlitFramebuffer(int srcX, int srcY, int srcWidth, int srcHeight, int dstX, int dstY, int dstWidth, int dstHeight, int bufferMask)  // Blit active framebuffer to main framebuffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlBlitFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlBlitFramebuffer was called.");
 }
 
 RLAPI void rlBindFramebuffer(unsigned int target, unsigned int framebuffer)  // Bind framebuffer (FBO) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlBindFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlBindFramebuffer was called.");
 }
 
 RLAPI void rlEnableColorBlend(void)                     // Enable color blending 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableColorBlend was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableColorBlend was called.");
 }
 
 RLAPI void rlDisableColorBlend(void)                    // Disable color blending 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableColorBlend was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableColorBlend was called.");
 }
 
 RLAPI void rlEnableDepthTest(void)                      // Enable depth test 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableDepthTest was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableDepthTest was called.");
 }
 
 RLAPI void rlDisableDepthTest(void)                     // Disable depth test 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableDepthTest was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableDepthTest was called.");
 }
 
 RLAPI void rlEnableDepthMask(void)                      // Enable depth write 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableDepthMask was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableDepthMask was called.");
 }
 
 RLAPI void rlDisableDepthMask(void)                     // Disable depth write 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableDepthMask was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableDepthMask was called.");
 }
 
 RLAPI void rlEnableBackfaceCulling(void)                // Enable backface culling 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableBackfaceCulling was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableBackfaceCulling was called.");
 }
 
 RLAPI void rlDisableBackfaceCulling(void)               // Disable backface culling 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableBackfaceCulling was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableBackfaceCulling was called.");
 }
 
 RLAPI void rlColorMask(bool r, bool g, bool b, bool a)  // Color mask control 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlColorMask was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlColorMask was called.");
 }
 
 RLAPI void rlSetCullFace(int mode)                      // Set face culling mode 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetCullFace was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetCullFace was called.");
 }
 
 RLAPI void rlEnableScissorTest(void)                    // Enable scissor test 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableScissorTest was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableScissorTest was called.");
 }
 
 RLAPI void rlDisableScissorTest(void)                   // Disable scissor test 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableScissorTest was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableScissorTest was called.");
 }
 
 RLAPI void rlScissor(int x, int y, int width, int height)  // Scissor test 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlScissor was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlScissor was called.");
 }
 
 RLAPI void rlEnablePointMode(void)                      // Enable point mode 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnablePointMode was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnablePointMode was called.");
 }
 
 RLAPI void rlDisablePointMode(void)                     // Disable point mode 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisablePointMode was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisablePointMode was called.");
 }
 
 RLAPI void rlSetPointSize(float size)                   // Set the point drawing size 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetPointSize was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetPointSize was called.");
 }
 
 RLAPI float rlGetPointSize(void)                        // Get the point drawing size 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetPointSize was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetPointSize was called.");
 	return 0.0f;
 }
 
 RLAPI void rlEnableWireMode(void)                       // Enable wire mode 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableWireMode was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableWireMode was called.");
 }
 
 RLAPI void rlDisableWireMode(void)                      // Disable wire mode 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableWireMode was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableWireMode was called.");
 }
 
 RLAPI void rlSetLineWidth(float width)                  // Set the line drawing width 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetLineWidth was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetLineWidth was called.");
 }
 
 RLAPI float rlGetLineWidth(void)                        // Get the line drawing width 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetLineWidth was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLineWidth was called.");
 	return 0.0f;
 }
 
 RLAPI void rlEnableSmoothLines(void)                    // Enable line aliasing 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableSmoothLines was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableSmoothLines was called.");
 }
 
 RLAPI void rlDisableSmoothLines(void)                   // Disable line aliasing 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableSmoothLines was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableSmoothLines was called.");
 }
 
 RLAPI void rlEnableStereoRender(void)                   // Enable stereo rendering 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlEnableStereoRender was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableStereoRender was called.");
 }
 
 RLAPI void rlDisableStereoRender(void)                  // Disable stereo rendering 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDisableStereoRender was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableStereoRender was called.");
 }
 
 RLAPI bool rlIsStereoRenderEnabled(void)                // Check if stereo render is enabled 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlIsStereoRenderEnabled was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlIsStereoRenderEnabled was called.");
 	return false;
 }
 
 RLAPI void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Clear color buffer with color 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlClearColor was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlClearColor was called.");
 }
 
 RLAPI void rlClearScreenBuffers(void)                   // Clear used screen buffers (color and depth) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlClearScreenBuffers was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlClearScreenBuffers was called.");
 }
 
 RLAPI void rlCheckErrors(void)                          // Check and log OpenGL error codes 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlCheckErrors was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlCheckErrors was called.");
 }
 
 RLAPI void rlSetBlendMode(int mode)                     // Set blending mode 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetBlendMode was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetBlendMode was called.");
 }
 
 RLAPI void rlSetBlendFactors(int glSrcFactor, int glDstFactor, int glEquation)  // Set blending mode factor and equation (using OpenGL factors) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetBlendFactors was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetBlendFactors was called.");
 }
 
 RLAPI void rlSetBlendFactorsSeparate(int glSrcRGB, int glDstRGB, int glSrcAlpha, int glDstAlpha, int glEqRGB, int glEqAlpha)  // Set blending mode factors and equations separately (using OpenGL factors) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetBlendFactorsSeparate was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetBlendFactorsSeparate was called.");
 }
 
 RLAPI void rlvkInit(int width, int height)              // Initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlvkInit was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlvkInit was called.");
 }
 
 RLAPI void rlvkClose(void)                              // De-initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlvkClose was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlvkClose was called.");
 }
 
 RLAPI void rlLoadExtensions(void *loader)               // Load OpenGL extensions (loader function required) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadExtensions was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadExtensions was called.");
 }
 
 RLAPI void *rlGetProcAddress(const char *procName)      // Get OpenGL procedure address 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetProcAddress was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetProcAddress was called.");
 	return NULL;
 }
 
 RLAPI int rlGetVersion(void)                            // Get current OpenGL version 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetVersion was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetVersion was called.");
 	return 0;
 }
 
 RLAPI void rlSetFramebufferWidth(int width)             // Set current framebuffer width 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetFramebufferWidth was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetFramebufferWidth was called.");
 }
 
 RLAPI int rlGetFramebufferWidth(void)                   // Get default framebuffer width 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetFramebufferWidth was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetFramebufferWidth was called.");
 	return 0;
 }
 
 RLAPI void rlSetFramebufferHeight(int height)           // Set current framebuffer height 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetFramebufferHeight was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetFramebufferHeight was called.");
 }
 
 RLAPI int rlGetFramebufferHeight(void)                  // Get default framebuffer height 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetFramebufferHeight was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetFramebufferHeight was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlGetTextureIdDefault(void)          // Get default texture id 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetTextureIdDefault was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetTextureIdDefault was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlGetShaderIdDefault(void)           // Get default shader id 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetShaderIdDefault was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderIdDefault was called.");
 	return 0;
 }
 
 RLAPI int *rlGetShaderLocsDefault(void)                 // Get default shader locations 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetShaderLocsDefault was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderLocsDefault was called.");
 	return NULL;
 }
 
 RLAPI rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a render batch system 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadRenderBatch was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadRenderBatch was called.");
 	return (rlRenderBatch) { 0 };
 }
 
 RLAPI void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadRenderBatch was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadRenderBatch was called.");
 }
 
 RLAPI void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Update->Draw->Reset) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDrawRenderBatch was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawRenderBatch was called.");
 }
 
 RLAPI void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batch for rlgl (NULL for default internal) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetRenderBatchActive was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetRenderBatchActive was called.");
 }
 
 RLAPI void rlDrawRenderBatchActive(void)                // Update and draw internal render batch 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDrawRenderBatchActive was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawRenderBatchActive was called.");
 }
 
 RLAPI bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overflow for a given number of vertex 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlCheckRenderBatchLimit was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlCheckRenderBatchLimit was called.");
 	return false;
 }
 
 RLAPI void rlSetTexture(unsigned int id)                // Set current texture for render batch and check buffers limits 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetTexture was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetTexture was called.");
 }
 
 RLAPI unsigned int rlLoadVertexArray(void)              // Load vertex array (vao) if supported 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadVertexArray was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexArray was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadVertexBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBuffer was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadVertexBufferElement was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBufferElement was called.");
 	return 0;
 }
 
 RLAPI void rlUpdateVertexBuffer(unsigned int bufferId, const void *data, int dataSize, int offset)  // Update vertex buffer object data on GPU buffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUpdateVertexBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateVertexBuffer was called.");
 }
 
 RLAPI void rlUpdateVertexBufferElements(unsigned int id, const void *data, int dataSize, int offset)  // Update vertex buffer elements data on GPU buffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUpdateVertexBufferElements was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateVertexBufferElements was called.");
 }
 
 RLAPI void rlUnloadVertexArray(unsigned int vaoId)      // Unload vertex array (vao) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadVertexArray was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadVertexArray was called.");
 }
 
 RLAPI void rlUnloadVertexBuffer(unsigned int vboId)     // Unload vertex buffer object 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadVertexBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadVertexBuffer was called.");
 }
 
 RLAPI void rlSetVertexAttribute(unsigned int index, int compSize, int type, bool normalized, int stride, int offset)  // Set vertex attribute data configuration 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetVertexAttribute was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetVertexAttribute was called.");
 }
 
 RLAPI void rlSetVertexAttributeDivisor(unsigned int index, int divisor)  // Set vertex attribute data divisor 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetVertexAttributeDivisor was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetVertexAttributeDivisor was called.");
 }
 
 RLAPI void rlSetVertexAttributeDefault(int locIndex, const void *value, int attribType, int count)  // Set vertex attribute default value, when attribute to provided 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetVertexAttributeDefault was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetVertexAttributeDefault was called.");
 }
 
 RLAPI void rlDrawVertexArray(int offset, int count)     // Draw vertex array (currently active vao) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDrawVertexArray was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawVertexArray was called.");
 }
 
 RLAPI void rlDrawVertexArrayElements(int offset, int count, const void *buffer)  // Draw vertex array elements 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDrawVertexArrayElements was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawVertexArrayElements was called.");
 }
 
 RLAPI void rlDrawVertexArrayInstanced(int offset, int count, int instances)  // Draw vertex array (currently active vao) with instancing 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDrawVertexArrayInstanced was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawVertexArrayInstanced was called.");
 }
 
 RLAPI void rlDrawVertexArrayElementsInstanced(int offset, int count, const void *buffer, int instances)  // Draw vertex array elements with instancing 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlDrawVertexArrayElementsInstanced was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawVertexArrayElementsInstanced was called.");
 }
 
 RLAPI unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount)  // Load texture data 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadTexture was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTexture was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer)  // Load depth texture/renderbuffer (to be attached to fbo) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadTextureDepth was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureDepth was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount)  // Load texture cubemap data 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadTextureCubemap was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureCubemap was called.");
 	return 0;
 }
 
 RLAPI void rlUpdateTexture(unsigned int id, int offsetX, int offsetY, int width, int height, int format, const void *data)  // Update texture with new data on GPU 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUpdateTexture was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateTexture was called.");
 }
 
 RLAPI void rlGetGlTextureFormats(int format, unsigned int *glInternalFormat, unsigned int *glFormat, unsigned int *glType)  // Get OpenGL internal formats 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetGlTextureFormats was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetGlTextureFormats was called.");
 }
 
 RLAPI const char *rlGetPixelFormatName(unsigned int format)               // Get name string for pixel format 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetPixelFormatName was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetPixelFormatName was called.");
 	return NULL;
 }
 
 RLAPI void rlUnloadTexture(unsigned int id)                               // Unload texture from GPU memory 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadTexture was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadTexture was called.");
 }
 
 RLAPI void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps)  // Generate mipmap data for selected texture 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGenTextureMipmaps was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGenTextureMipmaps was called.");
 }
 
 RLAPI void *rlReadTexturePixels(unsigned int id, int width, int height, int format)  // Read texture pixel data 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlReadTexturePixels was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlReadTexturePixels was called.");
 	return NULL;
 }
 
 RLAPI unsigned char *rlReadScreenPixels(int width, int height)            // Read screen pixel data (color buffer) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlReadScreenPixels was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlReadScreenPixels was called.");
 	return NULL;
 }
 
 RLAPI unsigned int rlLoadFramebuffer(void)                                // Load an empty framebuffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadFramebuffer was called.");
 	return 0;
 }
 
 RLAPI void rlFramebufferAttach(unsigned int id, unsigned int texId, int attachType, int texType, int mipLevel)  // Attach texture/renderbuffer to a framebuffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlFramebufferAttach was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlFramebufferAttach was called.");
 }
 
 RLAPI bool rlFramebufferComplete(unsigned int id)                         // Verify framebuffer is complete 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlFramebufferComplete was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlFramebufferComplete was called.");
 	return false;
 }
 
 RLAPI void rlUnloadFramebuffer(unsigned int id)                           // Delete framebuffer from GPU 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadFramebuffer was called.");
 }
 
 RLAPI void rlCopyFramebuffer(int x, int y, int width, int height, int format, void *pixels)  // Copy framebuffer pixel data to internal buffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlCopyFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlCopyFramebuffer was called.");
 }
 
 RLAPI void rlResizeFramebuffer(int width, int height)                     // Resize internal framebuffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlResizeFramebuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlResizeFramebuffer was called.");
 }
 
 RLAPI unsigned int rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadShader was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShader was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadShaderProgram was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgram was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId)  // Load shader program, using already loaded shader ids 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadShaderProgramEx was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgramEx was called.");
 	return 0;
 }
 
 RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId)                // Load compute shader program 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadShaderProgramCompute was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgramCompute was called.");
 	return 0;
 }
 
 RLAPI void rlUnloadShader(unsigned int id)                                      // Unload shader, loaded with rlLoadShader() 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadShader was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShader was called.");
 }
 
 RLAPI void rlUnloadShaderProgram(unsigned int id)                               // Unload shader program 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadShaderProgram was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShaderProgram was called.");
 }
 
 RLAPI int rlGetLocationUniform(unsigned int id, const char *uniformName)        // Get shader location uniform, requires shader program id 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetLocationUniform was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
 	return 0;
 }
 
 RLAPI int rlGetLocationAttrib(unsigned int id, const char *attribName)          // Get shader location attribute, requires shader program id 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetLocationAttrib was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationAttrib was called.");
 	return 0;
 }
 
 RLAPI void rlSetUniform(int locIndex, const void *value, int uniformType, int count)  // Set shader value uniform 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetUniform was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniform was called.");
 }
 
 RLAPI void rlSetUniformMatrix(int locIndex, Matrix mat)                         // Set shader value matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetUniformMatrix was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformMatrix was called.");
 }
 
 RLAPI void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count)     // Set shader value matrices 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetUniformMatrices was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformMatrices was called.");
 }
 
 RLAPI void rlSetUniformSampler(int locIndex, unsigned int textureId)            // Set shader value sampler 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetUniformSampler was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformSampler was called.");
 }
 
 RLAPI void rlSetShader(unsigned int id, int *locs)                              // Set shader currently active (id and locations) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetShader was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetShader was called.");
 }
 
 RLAPI void rlComputeShaderDispatch(unsigned int groupX, unsigned int groupY, unsigned int groupZ)  // Dispatch compute shader (equivalent to *draw* for graphics pipeline) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlComputeShaderDispatch was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlComputeShaderDispatch was called.");
 }
 
 RLAPI unsigned int rlLoadShaderBuffer(unsigned int size, const void *data, int usageHint)  // Load shader storage buffer object (SSBO) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadShaderBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderBuffer was called.");
 	return 0;
 }
 
 RLAPI void rlUnloadShaderBuffer(unsigned int ssboId)                            // Unload shader storage buffer object (SSBO) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUnloadShaderBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShaderBuffer was called.");
 }
 
 RLAPI void rlUpdateShaderBuffer(unsigned int id, const void *data, unsigned int dataSize, unsigned int offset)  // Update SSBO buffer data 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlUpdateShaderBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateShaderBuffer was called.");
 }
 
 RLAPI void rlBindShaderBuffer(unsigned int id, unsigned int index)              // Bind SSBO buffer 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlBindShaderBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlBindShaderBuffer was called.");
 }
 
 RLAPI void rlReadShaderBuffer(unsigned int id, void *dest, unsigned int count, unsigned int offset)  // Read SSBO buffer data (GPU->CPU) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlReadShaderBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlReadShaderBuffer was called.");
 }
 
 RLAPI void rlCopyShaderBuffer(unsigned int destId, unsigned int srcId, unsigned int destOffset, unsigned int srcOffset, unsigned int count)  // Copy SSBO data between buffers 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlCopyShaderBuffer was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlCopyShaderBuffer was called.");
 }
 
 RLAPI unsigned int rlGetShaderBufferSize(unsigned int id)                       // Get SSBO buffer size 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetShaderBufferSize was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderBufferSize was called.");
 	return 0;
 }
 
 RLAPI void rlBindImageTexture(unsigned int id, unsigned int index, int format, bool readonly)   // Bind image texture 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlBindImageTexture was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlBindImageTexture was called.");
 }
 
 RLAPI Matrix rlGetMatrixModelview(void)                                   // Get internal modelview matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetMatrixModelview was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixModelview was called.");
 	return rlMatrixIdentity();
 }
 
 RLAPI Matrix rlGetMatrixProjection(void)                                  // Get internal projection matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetMatrixProjection was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixProjection was called.");
 	return rlMatrixIdentity();
 }
 
 RLAPI Matrix rlGetMatrixTransform(void)                                   // Get internal accumulated transform matrix 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetMatrixTransform was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixTransform was called.");
 	return rlMatrixIdentity();
 }
 
 RLAPI Matrix rlGetMatrixProjectionStereo(int eye)                         // Get internal projection matrix for stereo render (selected eye) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetMatrixProjectionStereo was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixProjectionStereo was called.");
 	return rlMatrixIdentity();
 }
 
 RLAPI Matrix rlGetMatrixViewOffsetStereo(int eye)                         // Get internal view offset matrix for stereo render (selected eye) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlGetMatrixViewOffsetStereo was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixViewOffsetStereo was called.");
 	return rlMatrixIdentity();
 }
 
 RLAPI void rlSetMatrixProjection(Matrix proj)                             // Set a custom projection matrix (replaces internal projection matrix) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetMatrixProjection was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixProjection was called.");
 }
 
 RLAPI void rlSetMatrixModelview(Matrix view)                              // Set a custom modelview matrix (replaces internal modelview matrix) 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetMatrixModelview was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixModelview was called.");
 }
 
 RLAPI void rlSetMatrixProjectionStereo(Matrix right, Matrix left)         // Set eyes projection matrices for stereo rendering 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetMatrixProjectionStereo was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixProjectionStereo was called.");
 }
 
 RLAPI void rlSetMatrixViewOffsetStereo(Matrix right, Matrix left)         // Set eyes view offsets matrices for stereo rendering 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlSetMatrixViewOffsetStereo was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixViewOffsetStereo was called.");
 }
 
 RLAPI void rlLoadDrawCube(void)      // Load and draw a cube 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadDrawCube was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadDrawCube was called.");
 }
 
 RLAPI void rlLoadDrawQuad(void)      // Load and draw a qua 
 {
-    TRACELOG(LOG_DEBUG, "rlvk function rlLoadDrawQuad was called.");
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadDrawQuad was called.");
 }
 
 #endif // RLVK_IMPLEMENTATION
