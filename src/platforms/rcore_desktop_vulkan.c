@@ -129,7 +129,7 @@ static PlatformData platform = { 0 };   // Platform specific data
 //----------------------------------------------------------------------------------
 // Module Internal Functions Declaration
 //----------------------------------------------------------------------------------
-int InitPlatform(void);          // Initialize platform (graphics, inputs and more)
+int InitPlatform(GLFWwindow **windowHandle);          // Initialize platform (graphics, inputs and more)
 void ClosePlatform(void);        // Close platform
 
 // Error callback event
@@ -1442,7 +1442,7 @@ static void DeallocateWrapper(void *block, void *user)
 }
 
 // Initialize platform: graphics, inputs and more
-int InitPlatform(void)
+int InitPlatform(GLFWwindow **windowHandle)
 {
     glfwSetErrorCallback(ErrorCallback);
 
@@ -1833,6 +1833,8 @@ int InitPlatform(void)
 #endif
 
     TRACELOG(LOG_INFO, "PLATFORM: DESKTOP (GLFW - %s): Initialized successfully", glfwPlatform);
+
+    *windowHandle = platform.handle;
 
     return 0;
 }

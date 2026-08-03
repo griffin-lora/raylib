@@ -160,6 +160,7 @@ foreach (example_source ${example_sources})
     if (NOT WIN32)
         target_link_libraries(${example_name} m)
     endif()
+    set_target_properties(${example_name} PROPERTIES LINKER_LANGUAGE CXX)
 
     string(REGEX MATCH ".*/.*/" resources_dir ${example_source})
     string(APPEND resources_dir "resources")

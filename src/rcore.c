@@ -499,7 +499,11 @@ extern void LoadFontDefault(void);      // [Module: text] Loads default font on 
 extern void UnloadFontDefault(void);    // [Module: text] Unloads default font from GPU memory
 #endif
 
+#ifdef PLATFORM_DESKTOP_VULKAN
+extern int InitPlatform(GLFWwindow **windowHandle);          // Initialize platform (graphics, inputs and more)
+#else
 extern int InitPlatform(void);          // Initialize platform (graphics, inputs and more)
+#endif
 extern void ClosePlatform(void);        // Close platform
 
 static void InitTimer(void);                                // Initialize timer, hi-resolution if available (required by InitPlatform())
@@ -674,7 +678,12 @@ void InitWindow(int width, int height, const char *title)
 
     // Initialize platform
     //--------------------------------------------------------------
+#ifdef PLATFORM_DESKTOP_VULKAN
+    GLFWwindow* windowHandle;
+    int result = InitPlatform(&windowHandle);
+#else
     int result = InitPlatform();
+#endif
 
     if (result != 0)
     {
@@ -696,7 +705,7 @@ void InitWindow(int width, int height, const char *title)
     // Initialize rlgl default data (buffers and shaders)
     // NOTE: Current fbo size stored as globals in rlgl for convenience
 #ifdef USING_RLVK
-    rlvkInit(CORE.Window.render.width, CORE.Window.render.height);
+    rlvkInit(CORE.Window.render.width, CORE.Window.render.height, windowHandle);
 #else
     rlglInit(CORE.Window.render.width, CORE.Window.render.height);
 #endif
