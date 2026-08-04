@@ -204,10 +204,10 @@
 #define RL_DYNAMIC_READ                         0x88E9      // GL_DYNAMIC_READ
 #define RL_DYNAMIC_COPY                         0x88EA      // GL_DYNAMIC_COPY
 
-// GL Shader type
-#define RL_FRAGMENT_SHADER                      0x8B30      // GL_FRAGMENT_SHADER
-#define RL_VERTEX_SHADER                        0x8B31      // GL_VERTEX_SHADER
-#define RL_COMPUTE_SHADER                       0x91B9      // GL_COMPUTE_SHADER
+// shaderc Shader type
+#define RL_FRAGMENT_SHADER                      1
+#define RL_VERTEX_SHADER                        0
+#define RL_COMPUTE_SHADER                       2
 
 // GL blending factors
 #define RL_ZERO                                 0           // GL_ZERO
@@ -514,6 +514,26 @@ typedef enum {
     RL_CULL_FACE_BACK
 } rlCullMode;
 
+#define RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(object) typedef struct Vk##object##_T *rl##object;
+
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Fence)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DeviceMemory)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Event)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(QueryPool)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(BufferView)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ImageView)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ShaderModule)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineCache)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineLayout)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Pipeline)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(RenderPass)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSetLayout)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Sampler)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSet)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorPool)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Framebuffer)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(CommandPool)
+
 //------------------------------------------------------------------------------------
 // Functions Declaration - Matrix operations
 //------------------------------------------------------------------------------------
@@ -697,7 +717,7 @@ RLAPI void rlCopyFramebuffer(int x, int y, int width, int height, int format, vo
 RLAPI void rlResizeFramebuffer(int width, int height);                    // Resize internal framebuffer
 
 // Shaders management
-RLAPI unsigned int rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
+RLAPI rlShaderModule rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
 RLAPI unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
 RLAPI unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId); // Load shader program, using already loaded shader ids
 RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId);               // Load compute shader program
@@ -826,6 +846,7 @@ typedef struct rlvkData {
     uint32_t swapChainImageCount;
     VkImage* swapChainImages;
     VkImageView* swapChainImageViews;
+    shaderc_compiler_t shaderCompiler;
     VmaAllocator allocator;
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
@@ -2381,73 +2402,11 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     "    outColor = vec4(1.0, 0.0, 0.0, 1.0); \n"
     "}\n\0";
 
-    shaderc_compiler_t shaderCompiler = shaderc_compiler_initialize();
-    shaderc_compile_options_t shaderCompileOptions = shaderc_compile_options_initialize();
-
-    //TODO: Set compile options
-
-    //TODO: Preprocess shader text?
-
-    shaderc_compilation_result_t vsCompileResult =
-        shaderc_compile_into_spv(shaderCompiler, defaultVShaderCode, strlen(defaultVShaderCode), shaderc_vertex_shader, 
-        "DefaultVertexShader", "main", shaderCompileOptions);
-
-    if (shaderc_result_get_compilation_status(vsCompileResult) != shaderc_compilation_status_success)
-    {
-        TRACELOG(LOG_WARNING, "RLVK: Failed to compile default vertex shader: %s", shaderc_result_get_error_message(vsCompileResult));
-        return;
-    }
-
-    size_t vsSpirVLength = shaderc_result_get_length(vsCompileResult);
-    uint32_t* vsSpirvVBinary = (uint32_t*)shaderc_result_get_bytes(vsCompileResult);
-
-    VkShaderModuleCreateInfo vertexShaderCreateInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = vsSpirVLength,
-        .pCode = vsSpirvVBinary
-    };
-
-    VkShaderModule vertexShaderModule;
-    if (vkCreateShaderModule(RLVK.device, &vertexShaderCreateInfo, 0, &vertexShaderModule) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to create vertex shader module");
-        return;
-    }
-
-    shaderc_result_release(vsCompileResult);
-
-    shaderc_compilation_result_t fsCompileResult =
-        shaderc_compile_into_spv(shaderCompiler, defaultFShaderCode, strlen(defaultFShaderCode), shaderc_fragment_shader, 
-        "DefaultFragmentShader", "main", shaderCompileOptions);
-
-    if (shaderc_result_get_compilation_status(fsCompileResult) != shaderc_compilation_status_success)
-    {
-        TRACELOG(LOG_WARNING, "RLVK: Failed to compile default fragment shader: %s", shaderc_result_get_error_message(fsCompileResult));
-        return;
-    }
-
-    size_t fsSpirVLength = shaderc_result_get_length(fsCompileResult);
-    uint32_t* fsSpirvVBinary = (uint32_t*)shaderc_result_get_bytes(fsCompileResult);
-
-    VkShaderModuleCreateInfo fragmentShaderCreateInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = fsSpirVLength,
-        .pCode = fsSpirvVBinary
-    };
-
-    VkShaderModule fragmentShaderModule;
-    if (vkCreateShaderModule(RLVK.device, &fragmentShaderCreateInfo, 0, &fragmentShaderModule) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to create fragment shader module");
-        return;
-    }
+    RLVK.shaderCompiler = shaderc_compiler_initialize();
+    // shaderc_compile_options_t shaderCompileOptions = shaderc_compile_options_initialize();
     
-    shaderc_result_release(fsCompileResult);
-
-    shaderc_compile_options_release(shaderCompileOptions);
-    shaderc_compiler_release(shaderCompiler);
+    VkShaderModule vertexShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER);
+    VkShaderModule fragmentShaderModule = rlLoadShader(defaultFShaderCode, RL_FRAGMENT_SHADER);
 
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo =
     {
@@ -2712,6 +2671,8 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
 
     vkDeviceWaitIdle(RLVK.device);
 
+    shaderc_compiler_release(RLVK.shaderCompiler);
+    
     vkDestroySemaphore(RLVK.device, RLVK.imageAvailableSemaphore, 0);
     vkDestroySemaphore(RLVK.device, RLVK.renderFinishedSemaphore, 0);
     vkDestroyFence(RLVK.device, RLVK.inFlightFence, 0);
@@ -2866,7 +2827,7 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
     //--------------------------------------------------------------------------------------------
     for (int i = 0; i < numBuffers; i++)
     {
-        // Obviously don't do any of this
+        // TODO: Obviously don't do any of this
 //         // Quads - Vertex buffers binding and attributes enable
 //         // Vertex position buffer (shader-location = 0)
 //         glGenBuffers(1, &batch.vertexBuffer[i].vboId[0]);
@@ -3169,10 +3130,42 @@ void rlResizeFramebuffer(int width, int height)                     // Resize in
     TRACELOG(RL_LOG_TRACE, "rlvk function rlResizeFramebuffer was called.");
 }
 
-unsigned int rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER) 
+rlShaderModule rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShader was called.");
-	return 0;
+    shaderc_compile_options_t shaderCompileOptions = shaderc_compile_options_initialize();
+
+    shaderc_compilation_result_t compileResult =
+        shaderc_compile_into_spv(RLVK.shaderCompiler, code, strlen(code), type, 
+        "rlvkShader", "main", shaderCompileOptions);
+
+    if (shaderc_result_get_compilation_status(compileResult) != shaderc_compilation_status_success)
+    {
+        TRACELOG(LOG_WARNING, "RLVK: Failed to compile shader: %s", shaderc_result_get_error_message(compileResult));
+        return NULL;
+    }
+
+    size_t vsSpirVLength = shaderc_result_get_length(compileResult);
+    uint32_t* vsSpirvVBinary = (uint32_t *)shaderc_result_get_bytes(compileResult);
+
+    VkShaderModuleCreateInfo shaderCreateInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = vsSpirVLength,
+        .pCode = vsSpirvVBinary
+    };
+
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(RLVK.device, &shaderCreateInfo, 0, &shaderModule) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create shader module");
+        return NULL;
+    }
+
+    shaderc_result_release(compileResult);
+
+    shaderc_compile_options_release(shaderCompileOptions);
+
+    return shaderModule;
 }
 
 unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 

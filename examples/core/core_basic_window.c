@@ -12,8 +12,8 @@ int main() {
     while (!WindowShouldClose()) {
         BeginDrawing();
 
-        ClearBackground(RED);
-        rlBegin(RL_TRIANGLES);
+        // ClearBackground(RED);
+        // rlBegin(RL_TRIANGLES);
         
         // rlColor3f(1.0f, 0.0f, 0.0f);
         // rlVertex2f(50.0f, 50.0f + height);
@@ -24,7 +24,7 @@ int main() {
         // rlColor3f(0.0f, 0.0f, 1.0f);
         // rlVertex2f(50.0f + 0.5f * width, 50.0f + (1.0f - 0.866025403784f) * height);
 
-        rlEnd();
+        // rlEnd();
 
         EndDrawing();
     }
