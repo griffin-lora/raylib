@@ -1028,7 +1028,7 @@ static void rlBeginFrame(void)
 
 static void rlBeginRenderPass(void)
 {
-    VkClearValue clearValue = { 0 };
+    VkClearValue clearValue = { .color = RLVK.clearColor };
 
     VkRenderPassBeginInfo renderPassInfo =
     {
@@ -1760,9 +1760,6 @@ bool rlIsStereoRenderEnabled(void)                // Check if stereo render is e
 
 void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Clear color buffer with color 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlClearColor was called.");
-    
-    //TODO: Set clear color
     RLVK.clearColor = (VkClearColorValue)
     {
         ((float)r)/255.0f,
@@ -1774,32 +1771,6 @@ void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned ch
 
 void rlClearScreenBuffers(void)                   // Clear used screen buffers (color and depth) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlClearScreenBuffers was called.");
-
-    VkImageSubresourceRange subResourceRange =
-    {
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.baseMipLevel = 0,
-		.levelCount = 1,
-		.baseArrayLayer = 0,
-		.layerCount = 1
-    };
-
-    VkClearAttachment clearAttachment =
-    {
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .colorAttachment = 0,
-        .clearValue.color = RLVK.clearColor
-    };
-
-    VkClearRect clearRect =
-    {
-        .rect = RLVK.scissor,
-        .baseArrayLayer = 0,
-        .layerCount = 1
-    };
-
-    vkCmdClearAttachments(RLVK.commandBuffer, 1, &clearAttachment, 1, &clearRect);
 }
 
 void rlCheckErrors(void)                          // Check and log OpenGL error codes 
@@ -3192,7 +3163,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_NORMAL], 1, false, rlMatrixToFloat(rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform))));
             // }
 
-            VkDeviceSize offsets[4];
+            VkDeviceSize offsets[4] = { 0 };
 
             // Bind all vertex buffers (all in one command!)
             vkCmdBindVertexBuffers(RLVK.commandBuffer, 0, 4, vb->deviceBuffers, offsets);

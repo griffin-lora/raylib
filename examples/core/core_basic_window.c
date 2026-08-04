@@ -12,17 +12,26 @@ int main() {
     while (!WindowShouldClose()) {
         BeginDrawing();
 
-        // ClearBackground(BLACK);
+        ClearBackground(RED);
         rlBegin(RL_TRIANGLES);
         
+        // rlColor3f(1.0f, 0.0f, 0.0f);
+        // rlVertex2f(50.0f, 50.0f + height);
+        
+        // rlColor3f(0.0f, 1.0f, 0.0f);
+        // rlVertex2f(50.0f + width, 50.0f + height);
+        
+        // rlColor3f(0.0f, 0.0f, 1.0f);
+        // rlVertex2f(50.0f + 0.5f * width, 50.0f + (1.0f - 0.866025403784f) * height);
+
         rlColor3f(1.0f, 0.0f, 0.0f);
-        rlVertex2f(50.0f, 50.0f + height);
+        rlVertex3f(0.0f, -0.5f, 0.0f);
         
         rlColor3f(0.0f, 1.0f, 0.0f);
-        rlVertex2f(50.0f + width, 50.0f + height);
+        rlVertex3f(0.5f, 0.5f, 0.0f);
         
         rlColor3f(0.0f, 0.0f, 1.0f);
-        rlVertex2f(50.0f + 0.5f * width, 50.0f + (1.0f - 0.866025403784f) * height);
+        rlVertex3f(-0.5f, 0.5f, 0.0f);
 
         rlEnd();
 
