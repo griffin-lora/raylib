@@ -551,8 +551,6 @@ RLAPI double rlGetCullDistanceFar(void);                // Get cull plane distan
 //------------------------------------------------------------------------------------
 // Functions Declaration - Vertex level operations
 //------------------------------------------------------------------------------------
-RLAPI void rlBeginFrame(void);
-RLAPI void rlEndFrame(void);
 RLAPI void rlBegin(int mode);                           // Initialize drawing mode (how to organize vertex)
 RLAPI void rlEnd(void);                                 // Finish vertex providing
 RLAPI void rlVertex2i(int x, int y);                    // Define one vertex (position) - 2 int
@@ -1004,11 +1002,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL rlVulkanDebugCallback(
 }
 #endif
 
-//----------------------------------------------------------------------------------
-// rlvk Implementation
-//----------------------------------------------------------------------------------
 
-void rlBeginFrame(void)
+static void rlBeginFrame(void)
 {
     vkWaitForFences(RLVK.device, 1, &RLVK.inFlightFence, VK_TRUE, UINT64_MAX);
     vkResetFences(RLVK.device, 1, &RLVK.inFlightFence);
@@ -1029,7 +1024,10 @@ void rlBeginFrame(void)
         TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
         return;
     }
+}
 
+static void rlBeginRenderPass(void)
+{
     VkClearValue clearValue = { 0 };
 
     VkRenderPassBeginInfo renderPassInfo =
@@ -1050,14 +1048,15 @@ void rlBeginFrame(void)
 
     vkCmdSetViewport(RLVK.commandBuffer, 0, 1, &RLVK.viewport);
     vkCmdSetScissor(RLVK.commandBuffer, 0, 1, &RLVK.scissor);
-
-    vkCmdDraw(RLVK.commandBuffer, 3, 1, 0, 0);
 }
 
-void rlEndFrame(void)
+static void rlEndRenderPass(void)
 {
     vkCmdEndRenderPass(RLVK.commandBuffer);
+}
 
+static void rlEndFrame(void)
+{
     if (vkEndCommandBuffer(RLVK.commandBuffer) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
@@ -1101,6 +1100,10 @@ void rlEndFrame(void)
 
     vkQueuePresentKHR(RLVK.presentQueue, &presentInfo);
 }
+
+//----------------------------------------------------------------------------------
+// rlvk Implementation
+//----------------------------------------------------------------------------------
 
 void rlMatrixMode(int mode)                       // Choose the current matrix to be transformed 
 {
@@ -3024,6 +3027,10 @@ void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system
 
 void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Update->Draw->Reset) 
 {
+    // TODO: Don't call rlBeginFrame and rlBeginRenderPass within the render batch function
+
+    rlBeginFrame();
+
     const rlVertexBuffer* vb = &batch->vertexBuffer[batch->currentBuffer];
         
     // Update batch vertex buffers
@@ -3087,6 +3094,8 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
     int eyeCount = 1;
     if (RLVK.State.stereoRender) eyeCount = 2;
+    
+    rlBeginRenderPass();
 
     for (int eye = 0; eye < eyeCount; eye++)
     {
@@ -3208,6 +3217,9 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     // Change to next buffer in the list (in case of multi-buffering)
     batch->currentBuffer++;
     if (batch->currentBuffer >= batch->bufferCount) batch->currentBuffer = 0;
+
+    rlEndRenderPass();
+    rlEndFrame();
 }
 
 void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batch for rlvk (NULL for default internal) 
