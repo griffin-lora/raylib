@@ -756,8 +756,8 @@ RLAPI void rlLoadDrawQuad(void);     // Load and draw a quad
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h> // Exactly what you think this is for
-
 #include <shaderc/shaderc.h>
+#include "external/vk_mem_alloc.h"
 
 #include <stdlib.h>             // Required for: calloc(), free()
 #include <string.h>             // Required for: strcmp(), strlen()
@@ -812,7 +812,7 @@ typedef struct rlvkData {
 
     //VULKAN DATA
     
-    VkInstance vkInstance;
+    VkInstance instance;
 #ifdef RLVK_ENABLE_VULKAN_VALIDATION_LAYER
     VkDebugUtilsMessengerEXT debugMessenger;
 #endif
@@ -825,6 +825,7 @@ typedef struct rlvkData {
     uint32_t swapChainImageCount;
     VkImage* swapChainImages;
     VkImageView* swapChainImageViews;
+    VmaAllocator allocator;
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
@@ -1845,7 +1846,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 #endif
     };
 
-    if (vkCreateInstance(&instanceCreateInfo, 0, &RLVK.vkInstance) != VK_SUCCESS)
+    if (vkCreateInstance(&instanceCreateInfo, 0, &RLVK.instance) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to initialize Instance");
         return;
@@ -1855,7 +1856,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     
 #ifdef RLVK_ENABLE_VULKAN_VALIDATION_LAYER
     PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = 
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(RLVK.vkInstance, "vkCreateDebugUtilsMessengerEXT");
+        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(RLVK.instance, "vkCreateDebugUtilsMessengerEXT");
 
     if (vkCreateDebugUtilsMessengerEXT == 0)
     {
@@ -1863,7 +1864,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         return;
     }
     
-    if (vkCreateDebugUtilsMessengerEXT(RLVK.vkInstance, &debugMessengerCreateInfo, 0, &RLVK.debugMessenger) != VK_SUCCESS)
+    if (vkCreateDebugUtilsMessengerEXT(RLVK.instance, &debugMessengerCreateInfo, 0, &RLVK.debugMessenger) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to initialize Debug Messenger");
         return;
@@ -1871,7 +1872,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 #endif
 
     //Platform dependent surface creation
-    if (glfwCreateWindowSurface(RLVK.vkInstance, windowHandle, 0, &RLVK.surface) != VK_SUCCESS)
+    if (glfwCreateWindowSurface(RLVK.instance, windowHandle, 0, &RLVK.surface) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "GLFW, Vulkan: Failed to create a window surface");
         return;
@@ -1882,7 +1883,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     uint32_t presentFamily = 0;
 
     uint32_t physicalDeviceCount = 0;
-    vkEnumeratePhysicalDevices(RLVK.vkInstance, &physicalDeviceCount, 0);
+    vkEnumeratePhysicalDevices(RLVK.instance, &physicalDeviceCount, 0);
 
     if (physicalDeviceCount == 0)
     {
@@ -1903,7 +1904,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         uint32_t* physicaDevicePresentFamilies = RL_MALLOC(physicalDeviceCount * sizeof(uint32_t));
         int32_t* physicaDeviceScores = RL_MALLOC(physicalDeviceCount * sizeof(int32_t));
         VkPhysicalDevice* physicalDevices = RL_MALLOC(physicalDeviceCount * sizeof(VkPhysicalDevice));
-        vkEnumeratePhysicalDevices(RLVK.vkInstance, &physicalDeviceCount, physicalDevices);
+        vkEnumeratePhysicalDevices(RLVK.instance, &physicalDeviceCount, physicalDevices);
 
         for (uint32_t i = 0; i < physicalDeviceCount; ++i)
         {
@@ -2734,22 +2735,22 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     RL_FREE(RLVK.swapChainImageViews);
     
     vkDestroySwapchainKHR(RLVK.device, RLVK.swapChain, 0);
-    vkDestroySurfaceKHR(RLVK.vkInstance, RLVK.surface, 0);
+    vkDestroySurfaceKHR(RLVK.instance, RLVK.surface, 0);
     vkDestroyDevice(RLVK.device, 0);
 
 #ifdef RLVK_ENABLE_VULKAN_VALIDATION_LAYER
     PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = 
-        (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(RLVK.vkInstance, "vkDestroyDebugUtilsMessengerEXT");
+        (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(RLVK.instance, "vkDestroyDebugUtilsMessengerEXT");
 
     if (vkDestroyDebugUtilsMessengerEXT == 0)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to get vkDestroyDebugUtilsMessengerEXT. Vulkan validation layers are probably not supported on this machine.");
     }
 
-    vkDestroyDebugUtilsMessengerEXT(RLVK.vkInstance, RLVK.debugMessenger, 0);
+    vkDestroyDebugUtilsMessengerEXT(RLVK.instance, RLVK.debugMessenger, 0);
 #endif
     
-    vkDestroyInstance(RLVK.vkInstance, 0);
+    vkDestroyInstance(RLVK.instance, 0);
 }
 
 void rlLoadExtensions(void *loader)               // Load OpenGL extensions (loader function required) 

@@ -62,7 +62,12 @@ else ()
     MESSAGE(STATUS "Audio Backend: miniaudio")
 endif ()
 
-add_library(raylib ${raylib_sources} ${raylib_public_headers})
+set(vk_mem_alloc_src)
+if ("${PLATFORM}" STREQUAL "Vulkan")
+    set(vk_mem_alloc_src external/vk_mem_alloc.cpp)
+endif ()
+
+add_library(raylib ${raylib_sources} ${raylib_public_headers} ${vk_mem_alloc_src})
 
 if (NOT BUILD_SHARED_LIBS)
     MESSAGE(STATUS "Building raylib static library")
