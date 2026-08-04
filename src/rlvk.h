@@ -842,7 +842,7 @@ typedef struct rlvkData {
 
     VkClearColorValue clearColor;
     rlRenderBatch *currentBatch;            // Current render batch
-    //rlRenderBatch defaultBatch;             // Default internal render batch
+    rlRenderBatch defaultBatch;             // Default internal render batch
 
     struct {
         int vertexCounter;                  // Current active render batch vertex counter (generic, used for all batches)
@@ -1296,6 +1296,35 @@ double rlGetCullDistanceFar(void)                 // Get cull plane distance far
 void rlBegin(int mode)                            // Initialize drawing mode (how to organize vertex) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlBegin was called.");
+    // Draw mode can be RL_LINES, RL_TRIANGLES and RL_QUADS
+    // NOTE: In all three cases, vertex are accumulated over default internal vertex buffer
+    if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode != mode)
+    {
+        if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount > 0)
+        {
+            // Make sure current RLVK.currentBatch->draws[i].vertexCount is aligned a multiple of 4,
+            // that way, following QUADS drawing will keep aligned with index processing
+            // It implies adding some extra alignment vertex at the end of the draw,
+            // those vertex are not processed but they are considered as an additional offset
+            // for the next set of vertex to be drawn
+            if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_LINES) RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment = ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount < 4)? RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount : RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount%4);
+            else if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_TRIANGLES) RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment = ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount < 4)? 1 : (4 - (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount%4)));
+            else RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment = 0;
+
+            if (!rlCheckRenderBatchLimit(RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment))
+            {
+                RLVK.State.vertexCounter += RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment;
+                RLVK.currentBatch->drawCounter++;
+            }
+        }
+
+        if (RLVK.currentBatch->drawCounter >= RL_DEFAULT_BATCH_DRAWCALLS) rlDrawRenderBatch(RLVK.currentBatch);
+
+        RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode = mode;
+        // TODO: Implement this
+        // RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureId = RLVK.State.currentTextureId;
+        // RLVK.State.currentTextureId = RLVK.State.defaultTextureId;
+    }
 }
 
 void rlEnd(void)                                  // Finish vertex providing 
@@ -2657,6 +2686,20 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         return;
     }
 
+    RLVK.defaultBatch = rlLoadRenderBatch(RL_DEFAULT_BATCH_BUFFERS, RL_DEFAULT_BATCH_BUFFER_ELEMENTS);
+    RLVK.currentBatch = &RLVK.defaultBatch;
+
+    // Init stack matrices (emulating OpenGL 1.1)
+    for (int i = 0; i < RL_MAX_MATRIX_STACK_SIZE; i++) RLVK.State.stack[i] = rlMatrixIdentity();
+
+    // Init internal matrices
+    RLVK.State.transform = rlMatrixIdentity();
+    RLVK.State.projection = rlMatrixIdentity();
+    RLVK.State.modelview = rlMatrixIdentity();
+    RLVK.State.currentMatrix = &RLVK.State.modelview;
+    RLVK.State.framebufferWidth = width;
+    RLVK.State.framebufferHeight = height;
+
     RLVK.inited = true;
 }
 
@@ -2773,7 +2816,118 @@ int *rlGetShaderLocsDefault(void)                 // Get default shader location
 rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a render batch system 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadRenderBatch was called.");
-	return (rlRenderBatch) { 0 };
+
+	rlRenderBatch batch = { 0 };
+
+    // Initialize CPU (RAM) vertex buffers (position, texcoord, color data and indexes)
+    //--------------------------------------------------------------------------------------------
+    batch.vertexBuffer = (rlVertexBuffer *)RL_CALLOC(numBuffers, sizeof(rlVertexBuffer));
+
+    for (int i = 0; i < numBuffers; i++)
+    {
+        batch.vertexBuffer[i].elementCount = bufferElements;
+
+        batch.vertexBuffer[i].vertices = (float *)RL_CALLOC(bufferElements*3*4, sizeof(float));     // 3 float by vertex, 4 vertex by quad
+        batch.vertexBuffer[i].texcoords = (float *)RL_CALLOC(bufferElements*2*4, sizeof(float));    // 2 float by texcoord, 4 texcoord by quad
+        batch.vertexBuffer[i].normals = (float *)RL_CALLOC(bufferElements*3*4, sizeof(float));      // 3 float by vertex, 4 vertex by quad
+        batch.vertexBuffer[i].colors = (unsigned char *)RL_CALLOC(bufferElements*4*4, sizeof(unsigned char));   // 4 float by color, 4 colors by quad
+        batch.vertexBuffer[i].indices = (unsigned int *)RL_CALLOC(bufferElements*6, sizeof(unsigned int));      // 6 int by quad (indices)
+
+        for (int j = 0; j < (3*4*bufferElements); j++) batch.vertexBuffer[i].vertices[j] = 0.0f;
+        for (int j = 0; j < (2*4*bufferElements); j++) batch.vertexBuffer[i].texcoords[j] = 0.0f;
+        for (int j = 0; j < (3*4*bufferElements); j++) batch.vertexBuffer[i].normals[j] = 0.0f;
+        for (int j = 0; j < (4*4*bufferElements); j++) batch.vertexBuffer[i].colors[j] = 0;
+
+        int k = 0;
+
+        // Indices can be initialized right now
+        for (int j = 0; j < (6*bufferElements); j += 6)
+        {
+            batch.vertexBuffer[i].indices[j] = 4*k;
+            batch.vertexBuffer[i].indices[j + 1] = 4*k + 1;
+            batch.vertexBuffer[i].indices[j + 2] = 4*k + 2;
+            batch.vertexBuffer[i].indices[j + 3] = 4*k;
+            batch.vertexBuffer[i].indices[j + 4] = 4*k + 2;
+            batch.vertexBuffer[i].indices[j + 5] = 4*k + 3;
+
+            k++;
+        }
+
+        RLVK.State.vertexCounter = 0;
+    }
+
+    TRACELOG(RL_LOG_INFO, "RLVK: Render batch vertex buffers loaded successfully in RAM (CPU)");
+    //--------------------------------------------------------------------------------------------
+
+    // Upload to GPU (VRAM) vertex data and initialize VAOs/VBOs
+    //--------------------------------------------------------------------------------------------
+    for (int i = 0; i < numBuffers; i++)
+    {
+        // Obviously don't do any of this
+//         // Quads - Vertex buffers binding and attributes enable
+//         // Vertex position buffer (shader-location = 0)
+//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[0]);
+//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[0]);
+//         glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].vertices, GL_DYNAMIC_DRAW);
+//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION]);
+//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION], 3, GL_FLOAT, 0, 0, 0);
+
+//         // Vertex texcoord buffer (shader-location = 1)
+//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[1]);
+//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[1]);
+//         glBufferData(GL_ARRAY_BUFFER, bufferElements*2*4*sizeof(float), batch.vertexBuffer[i].texcoords, GL_DYNAMIC_DRAW);
+//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01]);
+//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01], 2, GL_FLOAT, 0, 0, 0);
+
+//         // Vertex normal buffer (shader-location = 2)
+//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[2]);
+//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[2]);
+//         glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].normals, GL_DYNAMIC_DRAW);
+//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL]);
+//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL], 3, GL_FLOAT, 0, 0, 0);
+
+//         // Vertex color buffer (shader-location = 3)
+//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[3]);
+//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[3]);
+//         glBufferData(GL_ARRAY_BUFFER, bufferElements*4*4*sizeof(unsigned char), batch.vertexBuffer[i].colors, GL_DYNAMIC_DRAW);
+//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR]);
+//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR], 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, 0);
+
+//         // Fill index buffer
+//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[4]);
+//         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[4]);
+// #if defined(GRAPHICS_API_OPENGL_33)
+//         glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferElements*6*sizeof(int), batch.vertexBuffer[i].indices, GL_STATIC_DRAW);
+// #endif
+// #if defined(GRAPHICS_API_OPENGL_ES2)
+//         glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferElements*6*sizeof(short), batch.vertexBuffer[i].indices, GL_STATIC_DRAW);
+// #endif
+    }
+
+    TRACELOG(RL_LOG_INFO, "RLGL: Render batch vertex buffers loaded successfully in VRAM (GPU)");
+
+    // Init draw calls tracking system
+    //--------------------------------------------------------------------------------------------
+    batch.draws = (rlDrawCall *)RL_CALLOC(RL_DEFAULT_BATCH_DRAWCALLS, sizeof(rlDrawCall));
+
+    for (int i = 0; i < RL_DEFAULT_BATCH_DRAWCALLS; i++)
+    {
+        batch.draws[i].mode = RL_QUADS;
+        batch.draws[i].vertexCount = 0;
+        batch.draws[i].vertexAlignment = 0;
+        //batch.draws[i].vaoId = 0;
+        //batch.draws[i].shaderId = 0;
+        // batch.draws[i].textureId = RLVK.State.defaultTextureId;
+        //batch.draws[i].RLVK.State.projection = rlMatrixIdentity();
+        //batch.draws[i].RLVK.State.modelview = rlMatrixIdentity();
+    }
+
+    batch.bufferCount = numBuffers;    // Record buffer count
+    batch.drawCounter = 1;             // Reset draws counter
+    batch.currentDepth = -1.0f;        // Reset depth value
+    //--------------------------------------------------------------------------------------------
+
+    return batch;
 }
 
 void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system 
