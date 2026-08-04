@@ -2495,13 +2495,59 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .pDynamicStates = dynamicStates
     };
 
+    VkVertexInputBindingDescription vertexBindings[4] = {
+        {
+            .binding = 0,
+            .stride = 3*sizeof(float),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+        {
+            .binding = 1,
+            .stride = 2*sizeof(float),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+        {
+            .binding = 2,
+            .stride = 3*sizeof(float),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+        {
+            .binding = 3,
+            .stride = 4*sizeof(uint8_t),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+    };
+    
+    VkVertexInputAttributeDescription vertexAttributes[4] = {
+        {
+            .binding = 0,
+            .location = 0,
+            .format = VK_FORMAT_R32G32B32_SFLOAT
+        },
+        {
+            .binding = 1,
+            .location = 1,
+            .format = VK_FORMAT_R32G32_SFLOAT
+        },
+        {
+            .binding = 2,
+            .location = 2,
+            .format = VK_FORMAT_R32G32B32_SFLOAT
+        },
+        {
+            .binding = 3,
+            .location = 3,
+            .format = VK_FORMAT_R8G8B8A8_SRGB
+        }
+    };
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 0,
-        .pVertexBindingDescriptions = 0, //Optional
-        .vertexAttributeDescriptionCount = 0,
-        .pVertexAttributeDescriptions = 0 //Optional
+        .vertexBindingDescriptionCount = 4,
+        .pVertexBindingDescriptions = vertexBindings,
+        .vertexAttributeDescriptionCount = 4,
+        .pVertexAttributeDescriptions = vertexAttributes
     };
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly =
