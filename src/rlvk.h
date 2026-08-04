@@ -2436,24 +2436,27 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     
     const char defaultVShaderCode[] =
     "#version 450                       \n"
-    "vec2 positions[3] = vec2[]         \n"
-    "(                                  \n"
-    "   vec2(0.0, -0.5),                \n"
-    "   vec2(0.5, 0.5),                 \n"
-    "   vec2(-0.5, 0.5)                 \n"
-    ");                                 \n"
+    "layout(location = 0) in vec3 vertexPosition;            \n"
+    "layout(location = 1) in vec2 vertexTexCoord;            \n"
+    "layout(location = 2) in vec4 vertexColor;               \n"
+    "layout(location = 0) out vec2 fragTexCoord;             \n"
+    "layout(location = 1) out vec4 fragColor;                \n"
     "void main()                        \n"
     "{                                  \n"
-    "    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0); \n"
-    "}\n\0";
+    "    fragTexCoord = vertexTexCoord; \n"
+    "    fragColor = vertexColor;       \n"
+    "    gl_Position = vec4(vertexPosition, 1.0); \n"
+    "}                                  \n\0";
 
     const char defaultFShaderCode[] =
     "#version 450                       \n"
-    "layout(location = 0) out vec4 outColor; \n"
+    "layout(location = 0) in vec2 fragTexCoord;              \n"
+    "layout(location = 1) in vec4 fragColor;                 \n"
+    "layout(location = 0) out vec4 finalColor;               \n"
     "void main()                        \n"
     "{                                  \n"
-    "    outColor = vec4(1.0, 0.0, 0.0, 1.0); \n"
-    "}\n\0";
+    "    finalColor = fragColor;        \n"
+    "}                                  \n\0";
     
     if ((RLVK.State.defaultVShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER)) == NULL)
     {
@@ -2537,7 +2540,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         {
             .binding = 3,
             .location = 3,
-            .format = VK_FORMAT_R8G8B8A8_SRGB
+            .format = VK_FORMAT_R8G8B8A8_UNORM
         }
     };
 
