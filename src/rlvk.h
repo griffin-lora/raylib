@@ -75,6 +75,7 @@
 #ifndef RLVK_H
 #define RLVK_H
 
+#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -1028,6 +1029,7 @@ void rlBeginFrame(void)
     vkCmdSetViewport(RLVK.commandBuffer, 0, 1, &RLVK.viewport);
     vkCmdSetScissor(RLVK.commandBuffer, 0, 1, &RLVK.scissor);
 
+    vkCmdDraw(RLVK.commandBuffer, 3, 1, 0, 0);
 }
 
 void rlEndFrame(void)

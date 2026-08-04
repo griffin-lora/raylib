@@ -12,7 +12,7 @@ int main() {
     while (!WindowShouldClose()) {
         BeginDrawing();
 
-        ClearBackground(BLACK);
+        ClearBackground(RED);
         rlBegin(RL_TRIANGLES);
         
         // rlColor3f(1.0f, 0.0f, 0.0f);
