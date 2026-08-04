@@ -75,7 +75,6 @@
 #ifndef RLVK_H
 #define RLVK_H
 
-#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -288,6 +287,7 @@
     #define RL_BOOL_TYPE
 #endif
 #endif
+#include <stdint.h>
 
 #if !defined(RL_MATRIX_TYPE)
 // Matrix, 4x4 components, column major, OpenGL style, right handed
@@ -300,6 +300,30 @@ typedef struct Matrix {
 #define RL_MATRIX_TYPE
 #endif
 
+// Define rlvk handles
+#define RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(object) typedef struct Vk##object##_T *rlvk##object;
+
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Buffer)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Image)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Fence)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DeviceMemory)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Event)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(QueryPool)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(BufferView)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ImageView)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ShaderModule)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineCache)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineLayout)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Pipeline)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(RenderPass)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSetLayout)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Sampler)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSet)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorPool)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Framebuffer)
+RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(CommandPool)
+typedef struct VmaAllocation_T *rlvkAllocation;
+
 // Dynamic vertex buffers (position + texcoords + colors + indices arrays)
 typedef struct rlVertexBuffer {
     int elementCount;           // Number of elements in the buffer (QUADS)
@@ -307,15 +331,10 @@ typedef struct rlVertexBuffer {
     float *vertices;            // Vertex position (XYZ - 3 components per vertex) (shader-location = 0)
     float *texcoords;           // Vertex texture coordinates (UV - 2 components per vertex) (shader-location = 1)
     float *normals;             // Vertex normal (XYZ - 3 components per vertex) (shader-location = 2)
-    unsigned char *colors;      // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
-#if defined(GRAPHICS_API_OPENGL_11) || defined(GRAPHICS_API_OPENGL_33)
-    unsigned int *indices;      // Vertex indices (in case vertex data comes indexed) (6 indices per quad)
-#endif
-#if defined(GRAPHICS_API_OPENGL_ES2)
-    unsigned short *indices;    // Vertex indices (in case vertex data comes indexed) (6 indices per quad)
-#endif
-    unsigned int vaoId;         // OpenGL Vertex Array Object id
-    unsigned int vboId[5];      // OpenGL Vertex Buffer Objects id (5 types of vertex data)
+    uint8_t *colors;      // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
+    uint16_t *indices;    // Vertex indices (in case vertex data comes indexed) (6 indices per quad)
+    rlvkBuffer buffer;
+    rlvkAllocation allocation;
 } rlVertexBuffer;
 
 // Draw call type
@@ -514,26 +533,6 @@ typedef enum {
     RL_CULL_FACE_BACK
 } rlCullMode;
 
-#define RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(object) typedef struct Vk##object##_T *rlvk##object;
-
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Fence)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DeviceMemory)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Event)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(QueryPool)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(BufferView)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ImageView)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ShaderModule)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineCache)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineLayout)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Pipeline)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(RenderPass)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSetLayout)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Sampler)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSet)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorPool)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Framebuffer)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(CommandPool)
-
 //------------------------------------------------------------------------------------
 // Functions Declaration - Matrix operations
 //------------------------------------------------------------------------------------
@@ -671,7 +670,7 @@ RLAPI int *rlGetShaderLocsDefault(void);                // Get default shader lo
 RLAPI rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements); // Load a render batch system
 RLAPI void rlUnloadRenderBatch(rlRenderBatch batch);    // Unload render batch system
 RLAPI void rlDrawRenderBatch(rlRenderBatch *batch);     // Draw render batch data (Update->Draw->Reset)
-RLAPI void rlSetRenderBatchActive(rlRenderBatch *batch); // Set the active render batch for rlgl (NULL for default internal)
+RLAPI void rlSetRenderBatchActive(rlRenderBatch *batch); // Set the active render batch for rlvk (NULL for default internal)
 RLAPI void rlDrawRenderBatchActive(void);               // Update and draw internal render batch
 RLAPI bool rlCheckRenderBatchLimit(int vCount);         // Check internal buffer overflow for a given number of vertex
 
@@ -1115,7 +1114,7 @@ void rlPushMatrix(void)                           // Push the current matrix to 
 {
     TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlPushMatrix was called.");
 
-    if (RLVK.State.stackCounter >= RL_MAX_MATRIX_STACK_SIZE) TRACELOG(RL_LOG_ERROR, "RLGL: Matrix stack overflow (RL_MAX_MATRIX_STACK_SIZE)");
+    if (RLVK.State.stackCounter >= RL_MAX_MATRIX_STACK_SIZE) TRACELOG(RL_LOG_ERROR, "RLVK: Matrix stack overflow (RL_MAX_MATRIX_STACK_SIZE)");
 
     if (RLVK.State.currentMatrixMode == RL_MODELVIEW)
     {
@@ -2326,6 +2325,28 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         }
     }
 
+    VmaAllocatorCreateInfo allocatorCreateInfo = {
+        .instance = RLVK.instance,
+        .physicalDevice = physicalDevice,
+        .device = RLVK.device,
+        .pAllocationCallbacks = NULL,
+        .pDeviceMemoryCallbacks = NULL,
+        .vulkanApiVersion = VK_API_VERSION_1_0,
+        .flags = 0 // Don't think any are needed
+    };
+
+    if (vmaCreateAllocator(&allocatorCreateInfo, &RLVK.allocator) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "shaderc: Failed to create shaderc compiler");
+        return;
+    }
+
+    if ((RLVK.shaderCompiler = shaderc_compiler_initialize()) == NULL)
+    {
+        TRACELOG(LOG_WARNING, "shaderc: Failed to create shaderc compiler");
+        return;
+    }
+
     VkAttachmentDescription colorAttachment =
     {
         .format = swapChainImageFormat,
@@ -2400,9 +2421,6 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     "{                                  \n"
     "    outColor = vec4(1.0, 0.0, 0.0, 1.0); \n"
     "}\n\0";
-
-    RLVK.shaderCompiler = shaderc_compiler_initialize();
-    // shaderc_compile_options_t shaderCompileOptions = shaderc_compile_options_initialize();
     
     if ((RLVK.State.defaultVShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER)) == NULL)
     {
@@ -2695,6 +2713,8 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
 
     shaderc_compiler_release(RLVK.shaderCompiler);
 
+    vmaDestroyAllocator(RLVK.allocator);
+
     for (uint32_t i = 0; i < RLVK.swapChainImageCount; ++i)
     {
         vkDestroyImageView(RLVK.device, RLVK.swapChainImageViews[i], 0);
@@ -2799,8 +2819,8 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
         batch.vertexBuffer[i].vertices = (float *)RL_CALLOC(bufferElements*3*4, sizeof(float));     // 3 float by vertex, 4 vertex by quad
         batch.vertexBuffer[i].texcoords = (float *)RL_CALLOC(bufferElements*2*4, sizeof(float));    // 2 float by texcoord, 4 texcoord by quad
         batch.vertexBuffer[i].normals = (float *)RL_CALLOC(bufferElements*3*4, sizeof(float));      // 3 float by vertex, 4 vertex by quad
-        batch.vertexBuffer[i].colors = (unsigned char *)RL_CALLOC(bufferElements*4*4, sizeof(unsigned char));   // 4 float by color, 4 colors by quad
-        batch.vertexBuffer[i].indices = (unsigned int *)RL_CALLOC(bufferElements*6, sizeof(unsigned int));      // 6 int by quad (indices)
+        batch.vertexBuffer[i].colors = (uint8_t *)RL_CALLOC(bufferElements*4*4, sizeof(uint8_t));   // 4 float by color, 4 colors by quad
+        batch.vertexBuffer[i].indices = (uint16_t *)RL_CALLOC(bufferElements*6, sizeof(uint16_t));      // 6 int by quad (indices)
 
         for (int j = 0; j < (3*4*bufferElements); j++) batch.vertexBuffer[i].vertices[j] = 0.0f;
         for (int j = 0; j < (2*4*bufferElements); j++) batch.vertexBuffer[i].texcoords[j] = 0.0f;
@@ -2833,47 +2853,42 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
     for (int i = 0; i < numBuffers; i++)
     {
         // TODO: Obviously don't do any of this
-//         // Quads - Vertex buffers binding and attributes enable
-//         // Vertex position buffer (shader-location = 0)
-//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[0]);
-//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[0]);
-//         glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].vertices, GL_DYNAMIC_DRAW);
-//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION]);
-//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION], 3, GL_FLOAT, 0, 0, 0);
+        // Quads - Vertex buffers binding and attributes enable
+        // Vertex position buffer (shader-location = 0)
+        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[0]);
+        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[0]);
+        // glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].vertices, GL_DYNAMIC_DRAW);
+        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION]);
+        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION], 3, GL_FLOAT, 0, 0, 0);
 
-//         // Vertex texcoord buffer (shader-location = 1)
-//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[1]);
-//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[1]);
-//         glBufferData(GL_ARRAY_BUFFER, bufferElements*2*4*sizeof(float), batch.vertexBuffer[i].texcoords, GL_DYNAMIC_DRAW);
-//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01]);
-//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01], 2, GL_FLOAT, 0, 0, 0);
+        // // Vertex texcoord buffer (shader-location = 1)
+        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[1]);
+        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[1]);
+        // glBufferData(GL_ARRAY_BUFFER, bufferElements*2*4*sizeof(float), batch.vertexBuffer[i].texcoords, GL_DYNAMIC_DRAW);
+        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01]);
+        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01], 2, GL_FLOAT, 0, 0, 0);
 
-//         // Vertex normal buffer (shader-location = 2)
-//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[2]);
-//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[2]);
-//         glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].normals, GL_DYNAMIC_DRAW);
-//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL]);
-//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL], 3, GL_FLOAT, 0, 0, 0);
+        // // Vertex normal buffer (shader-location = 2)
+        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[2]);
+        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[2]);
+        // glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].normals, GL_DYNAMIC_DRAW);
+        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL]);
+        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL], 3, GL_FLOAT, 0, 0, 0);
 
-//         // Vertex color buffer (shader-location = 3)
-//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[3]);
-//         glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[3]);
-//         glBufferData(GL_ARRAY_BUFFER, bufferElements*4*4*sizeof(unsigned char), batch.vertexBuffer[i].colors, GL_DYNAMIC_DRAW);
-//         glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR]);
-//         glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR], 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, 0);
+        // // Vertex color buffer (shader-location = 3)
+        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[3]);
+        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[3]);
+        // glBufferData(GL_ARRAY_BUFFER, bufferElements*4*4*sizeof(unsigned char), batch.vertexBuffer[i].colors, GL_DYNAMIC_DRAW);
+        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR]);
+        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR], 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, 0);
 
-//         // Fill index buffer
-//         glGenBuffers(1, &batch.vertexBuffer[i].vboId[4]);
-//         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[4]);
-// #if defined(GRAPHICS_API_OPENGL_33)
-//         glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferElements*6*sizeof(int), batch.vertexBuffer[i].indices, GL_STATIC_DRAW);
-// #endif
-// #if defined(GRAPHICS_API_OPENGL_ES2)
-//         glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferElements*6*sizeof(short), batch.vertexBuffer[i].indices, GL_STATIC_DRAW);
-// #endif
+        // // Fill index buffer
+        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[4]);
+        // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[4]);
+        // glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferElements*6*sizeof(short), batch.vertexBuffer[i].indices, GL_STATIC_DRAW);
     }
 
-    TRACELOG(RL_LOG_INFO, "RLGL: Render batch vertex buffers loaded successfully in VRAM (GPU)");
+    TRACELOG(RL_LOG_INFO, "RLVK: Render batch vertex buffers loaded successfully in VRAM (GPU)");
 
     // Init draw calls tracking system
     //--------------------------------------------------------------------------------------------
@@ -2909,7 +2924,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawRenderBatch was called.");
 }
 
-void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batch for rlgl (NULL for default internal) 
+void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batch for rlvk (NULL for default internal) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetRenderBatchActive was called.");
 }
