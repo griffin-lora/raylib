@@ -1357,8 +1357,6 @@ void rlBegin(int mode)                            // Initialize drawing mode (ho
 
 void rlEnd(void)                                  // Finish vertex providing 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnd was called.");
-
     RLVK.currentBatch->currentDepth += (1.0f/20000.0f);
 }
 
@@ -2438,7 +2436,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     "#version 450                       \n"
     "layout(location = 0) in vec3 vertexPosition;            \n"
     "layout(location = 1) in vec2 vertexTexCoord;            \n"
-    "layout(location = 2) in vec4 vertexColor;               \n"
+    "layout(location = 3) in vec4 vertexColor;               \n"
     "layout(location = 0) out vec2 fragTexCoord;             \n"
     "layout(location = 1) out vec4 fragColor;                \n"
     "void main()                        \n"
@@ -2540,7 +2538,8 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         {
             .binding = 3,
             .location = 3,
-            .format = VK_FORMAT_R8G8B8A8_UNORM
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .offset = 0
         }
     };
 
@@ -3193,10 +3192,10 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_NORMAL], 1, false, rlMatrixToFloat(rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform))));
             // }
 
-            VkDeviceSize offsets = 0;
+            VkDeviceSize offsets[4];
 
             // Bind all vertex buffers (all in one command!)
-            vkCmdBindVertexBuffers(RLVK.commandBuffer, 0, 4, vb->deviceBuffers, &offsets);
+            vkCmdBindVertexBuffers(RLVK.commandBuffer, 0, 4, vb->deviceBuffers, offsets);
 
             // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch->vertexBuffer[batch->currentBuffer].vboId[4]);
 
