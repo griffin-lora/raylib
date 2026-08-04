@@ -852,7 +852,6 @@ typedef struct rlvkData {
 
     //-----------
 
-    VkClearColorValue clearColor;
     rlRenderBatch *currentBatch;            // Current render batch
     rlRenderBatch defaultBatch;             // Default internal render batch
 
@@ -1028,19 +1027,13 @@ static void rlBeginFrame(void)
 
 static void rlBeginRenderPass(void)
 {
-    VkClearValue clearValue = { .color = RLVK.clearColor };
-
     VkRenderPassBeginInfo renderPassInfo =
     {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass = RLVK.renderPass,
         .framebuffer = RLVK.swapChainFramebuffers[RLVK.imageIndex],
         .renderArea.offset = { 0, 0 },
-        .renderArea.extent = RLVK.swapChainExtent,
-
-        //TODO: It is possible to clear screen on render pass begin, this can be useful
-        .clearValueCount = 1,
-        .pClearValues = &clearValue
+        .renderArea.extent = RLVK.swapChainExtent
     };
 
     vkCmdBeginRenderPass(RLVK.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -1760,13 +1753,27 @@ bool rlIsStereoRenderEnabled(void)                // Check if stereo render is e
 
 void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Clear color buffer with color 
 {
-    RLVK.clearColor = (VkClearColorValue)
-    {
-        ((float)r)/255.0f,
-        ((float)g)/255.0f,
-        ((float)b)/255.0f,
-        ((float)a)/255.0f
-    };
+    rlBegin(RL_TRIANGLES);
+
+    rlColor4ub(r, g, b, a);
+    rlVertex3f(-1.0f, -1.0f, 0.0f);
+    
+    rlColor4ub(r, g, b, a);
+    rlVertex3f(1.0f, 1.0f, 0.0f);
+    
+    rlColor4ub(r, g, b, a);
+    rlVertex3f(-1.0f, 1.0f, 0.0f);
+
+    rlColor4ub(r, g, b, a);
+    rlVertex3f(-1.0f, -1.0f, 0.0f);
+    
+    rlColor4ub(r, g, b, a);
+    rlVertex3f(1.0f, -1.0f, 0.0f);
+    
+    rlColor4ub(r, g, b, a);
+    rlVertex3f(1.0f, 1.0f, 0.0f);
+
+    rlEnd();
 }
 
 void rlClearScreenBuffers(void)                   // Clear used screen buffers (color and depth) 
