@@ -1359,22 +1359,10 @@ void rlEnd(void)                                  // Finish vertex providing
     RLVK.currentBatch->currentDepth += (1.0f/20000.0f);
 }
 
-void rlVertex2i(int x, int y)                     // Define one vertex (position) - 2 int 
+// Define one vertex (position)
+// NOTE: Vertex position data is the basic information required for drawing
+void rlVertex3f(float x, float y, float z)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex2i was called.");
-}
-
-void rlVertex2f(float x, float y)                 // Define one vertex (position) - 2 float 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex2f was called.");
-
-    rlVertex3f(x, y, RLVK.currentBatch->currentDepth);
-}
-
-void rlVertex3f(float x, float y, float z)        // Define one vertex (position) - 3 float 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlVertex3f was called.");
-
     float tx = x;
     float ty = y;
     float tz = z;
@@ -1387,9 +1375,9 @@ void rlVertex3f(float x, float y, float z)        // Define one vertex (position
         tz = RLVK.State.transform.m2*x + RLVK.State.transform.m6*y + RLVK.State.transform.m10*z + RLVK.State.transform.m14;
     }
 
-    // WARNING: We can't break primitives when launching a new batch.
-    // RL_LINES comes in pairs, RL_TRIANGLES come in groups of 3 vertices and RL_QUADS come in groups of 4 vertices.
-    // We must check current draw.mode when a new vertex is required and finish the batch only if the draw.mode draw.vertexCount is %2, %3 or %4
+    // WARNING: Be careful with primitives breaking when launching a new batch!
+    // RL_LINES comes in pairs, RL_TRIANGLES come in groups of 3 vertices and RL_QUADS come in groups of 4 vertices
+    // Checking current draw.mode when a new vertex is required and finish the batch only if the draw.mode draw.vertexCount is %2, %3 or %4
     if (RLVK.State.vertexCounter > (RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].elementCount*4 - 4))
     {
         if ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_LINES) &&
@@ -1397,7 +1385,7 @@ void rlVertex3f(float x, float y, float z)        // Define one vertex (position
         {
             // Reached the maximum number of vertices for RL_LINES drawing
             // Launch a draw call but keep current state for next vertices comming
-            // NOTE: We add +1 vertex to the check for security
+            // NOTE: Adding +1 vertex to the check for some safety
             rlCheckRenderBatchLimit(2 + 1);
         }
         else if ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_TRIANGLES) &&
@@ -1421,7 +1409,10 @@ void rlVertex3f(float x, float y, float z)        // Define one vertex (position
     RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].texcoords[2*RLVK.State.vertexCounter] = RLVK.State.texcoordx;
     RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].texcoords[2*RLVK.State.vertexCounter + 1] = RLVK.State.texcoordy;
 
-    // WARNING: By default rlVertexBuffer struct does not store normals
+    // Add current normal
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].normals[3*RLVK.State.vertexCounter] = RLVK.State.normalx;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].normals[3*RLVK.State.vertexCounter + 1] = RLVK.State.normaly;
+    RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].normals[3*RLVK.State.vertexCounter + 2] = RLVK.State.normalz;
 
     // Add current color
     RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].colors[4*RLVK.State.vertexCounter] = RLVK.State.colorr;
@@ -1433,41 +1424,77 @@ void rlVertex3f(float x, float y, float z)        // Define one vertex (position
     RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount++;
 }
 
-void rlTexCoord2f(float x, float y)               // Define one vertex (texture coordinate) - 2 float 
+// Define one vertex (position)
+void rlVertex2f(float x, float y)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlTexCoord2f was called.");
+    rlVertex3f(x, y, RLVK.currentBatch->currentDepth);
+}
 
+// Define one vertex (position)
+void rlVertex2i(int x, int y)
+{
+    rlVertex3f((float)x, (float)y, RLVK.currentBatch->currentDepth);
+}
+
+// Define one vertex (texture coordinate)
+// NOTE: Texture coordinates are limited to QUADS only
+void rlTexCoord2f(float x, float y)
+{
     RLVK.State.texcoordx = x;
     RLVK.State.texcoordy = y;
 }
 
-void rlNormal3f(float x, float y, float z)        // Define one vertex (normal) - 3 float 
+// Define one vertex (normal)
+// NOTE: Normals limited to TRIANGLES only?
+void rlNormal3f(float x, float y, float z)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlNormal3f was called.");
+    float normalx = x;
+    float normaly = y;
+    float normalz = z;
+    if (RLVK.State.transformRequired)
+    {
+        normalx = RLVK.State.transform.m0*x + RLVK.State.transform.m4*y + RLVK.State.transform.m8*z;
+        normaly = RLVK.State.transform.m1*x + RLVK.State.transform.m5*y + RLVK.State.transform.m9*z;
+        normalz = RLVK.State.transform.m2*x + RLVK.State.transform.m6*y + RLVK.State.transform.m10*z;
+    }
 
-    RLVK.State.normalx = x;
-    RLVK.State.normaly = y;
-    RLVK.State.normalz = z;
+    // NOTE: Default behavior assumes the normal vector is in the correct space for what the shader expects,
+    // it could be not normalized to 0.0f..1.0f, magnitud can be useed for some effects
+    /*
+    // WARNING: Vector normalization if required
+    float length = sqrtf(normalx*normalx + normaly*normaly + normalz*normalz);
+    if (length != 0.0f)
+    {
+        float ilength = 1.0f/length;
+        normalx *= ilength;
+        normaly *= ilength;
+        normalz *= ilength;
+    }
+    */
+    RLVK.State.normalx = normalx;
+    RLVK.State.normaly = normaly;
+    RLVK.State.normalz = normalz;
 }
 
-void rlColor4ub(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Define one vertex (color) - 4 byte 
+// Define one vertex (color)
+void rlColor4ub(unsigned char x, unsigned char y, unsigned char z, unsigned char w)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlColor4ub was called.");
-
-    RLVK.State.colorr = r;
-    RLVK.State.colorg = g;
-    RLVK.State.colorb = b;
-    RLVK.State.colora = a;
+    RLVK.State.colorr = x;
+    RLVK.State.colorg = y;
+    RLVK.State.colorb = z;
+    RLVK.State.colora = w;
 }
 
-void rlColor3f(float x, float y, float z)         // Define one vertex (color) - 3 float 
+// Define one vertex (color)
+void rlColor4f(float r, float g, float b, float a)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlColor3f was called.");
+    rlColor4ub((unsigned char)(r*255), (unsigned char)(g*255), (unsigned char)(b*255), (unsigned char)(a*255));
 }
 
-void rlColor4f(float x, float y, float z, float w)  // Define one vertex (color) - 4 float 
+// Define one vertex (color)
+void rlColor3f(float x, float y, float z)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlColor4f was called.");
+    rlColor4ub((unsigned char)(x*255), (unsigned char)(y*255), (unsigned char)(z*255), 255);
 }
 
 bool rlEnableVertexArray(unsigned int vaoId)      // Enable vertex array (VAO, if supported) 
@@ -2997,7 +3024,190 @@ void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system
 
 void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Update->Draw->Reset) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawRenderBatch was called.");
+    const rlVertexBuffer* vb = &batch->vertexBuffer[batch->currentBuffer];
+        
+    // Update batch vertex buffers
+    //------------------------------------------------------------------------------------------------------------
+    // NOTE: If there is not vertex data, buffers doesn't need to be updated (vertexCount > 0)
+    if (RLVK.State.vertexCounter > 0)
+    {
+        void* mappedData;
+        VkBufferCopy bufferCopy = { 0 };
+
+        // Vertex positions buffer
+        bufferCopy.size = RLVK.State.vertexCounter*3*sizeof(float);
+        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[0], &mappedData) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+            return;
+        }
+        memcpy(mappedData, vb->vertices, bufferCopy.size);
+        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[0]);
+        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[0], vb->deviceBuffers[0], 1, &bufferCopy);
+
+        // Texture coordinates buffer
+        bufferCopy.size = RLVK.State.vertexCounter*2*sizeof(float);
+        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[1], &mappedData) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+            return;
+        }
+        memcpy(mappedData, vb->texcoords, bufferCopy.size);
+        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[1]);
+        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[1], vb->deviceBuffers[1], 1, &bufferCopy);
+
+        // Normals buffer
+        bufferCopy.size = RLVK.State.vertexCounter*3*sizeof(float);
+        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[2], &mappedData) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+            return;
+        }
+        memcpy(mappedData, vb->normals, bufferCopy.size);
+        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[2]);
+        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[2], vb->deviceBuffers[2], 1, &bufferCopy);
+
+        // Colors buffer
+        bufferCopy.size = RLVK.State.vertexCounter*4*sizeof(uint8_t);
+        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[3], &mappedData) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+            return;
+        }
+        memcpy(mappedData, vb->colors, bufferCopy.size);
+        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[3]);
+        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[3], vb->deviceBuffers[3], 1, &bufferCopy);
+    }
+    //------------------------------------------------------------------------------------------------------------
+
+    // Draw batch vertex buffers (considering VR stereo if required)
+    //------------------------------------------------------------------------------------------------------------
+    Matrix matProjection = RLVK.State.projection;
+    Matrix matModelView = RLVK.State.modelview;
+
+    int eyeCount = 1;
+    if (RLVK.State.stereoRender) eyeCount = 2;
+
+    for (int eye = 0; eye < eyeCount; eye++)
+    {
+        if (eyeCount == 2)
+        {
+            // Setup current eye viewport (half screen width)
+            rlViewport(eye*RLVK.State.framebufferWidth/2, 0, RLVK.State.framebufferWidth/2, RLVK.State.framebufferHeight);
+
+            // Set current eye view offset to modelview matrix
+            rlSetMatrixModelview(rlMatrixMultiply(matModelView, RLVK.State.viewOffsetStereo[eye]));
+            // Set current eye projection matrix
+            rlSetMatrixProjection(RLVK.State.projectionStereo[eye]);
+        }
+
+        // Draw buffers
+        if (RLVK.State.vertexCounter > 0)
+        {
+            // TODO: Add custom shader support
+            // Set current shader and upload current MVP matrix
+            // glUseProgram(RLVK.State.currentShaderId);
+
+            // Create modelview-projection matrix and upload to shader
+            // Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, RLVK.State.projection);
+            // glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MVP], 1, false, rlMatrixToFloat(matMVP));
+
+            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_PROJECTION] != -1)
+            // {
+            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_PROJECTION], 1, false, rlMatrixToFloat(RLVK.State.projection));
+            // }
+
+            // // WARNING: For the following setup of the view, model, and normal matrices, it is expected that
+            // // transformations and rendering occur between rlPushMatrix() and rlPopMatrix()
+
+            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_VIEW] != -1)
+            // {
+            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_VIEW], 1, false, rlMatrixToFloat(RLVK.State.modelview));
+            // }
+
+            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MODEL] != -1)
+            // {
+            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MODEL], 1, false, rlMatrixToFloat(RLVK.State.transform));
+            // }
+
+            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_NORMAL] != -1)
+            // {
+            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_NORMAL], 1, false, rlMatrixToFloat(rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform))));
+            // }
+
+            VkDeviceSize offsets = 0;
+
+            // Bind all vertex buffers (all in one command!)
+            vkCmdBindVertexBuffers(RLVK.commandBuffer, 0, 4, vb->deviceBuffers, &offsets);
+
+            // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch->vertexBuffer[batch->currentBuffer].vboId[4]);
+
+            // // Setup some default shader values
+            // glUniform4f(RLVK.State.currentShaderLocs[RL_SHADER_LOC_COLOR_DIFFUSE], 1.0f, 1.0f, 1.0f, 1.0f);
+            // glUniform1i(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MAP_DIFFUSE], 0);  // Active default sampler2D: texture0
+
+            // // Activate additional sampler textures
+            // // Those additional textures will be common for all draw calls of the batch
+            // for (int i = 0; i < RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS; i++)
+            // {
+            //     if (RLVK.State.activeTextureId[i] > 0)
+            //     {
+            //         glActiveTexture(GL_TEXTURE0 + 1 + i);
+            //         glBindTexture(GL_TEXTURE_2D, RLVK.State.activeTextureId[i]);
+            //     }
+            // }
+
+            // // Activate default sampler2D texture0 (one texture is always active for default batch shader)
+            // // NOTE: Batch system accumulates calls by texture0 changes, additional textures are enabled for all the draw calls
+            // glActiveTexture(GL_TEXTURE0);
+
+            for (int i = 0, vertexOffset = 0; i < batch->drawCounter; i++)
+            {
+                // Bind current draw call texture, activated as GL_TEXTURE0 and bound to sampler2D texture0 by default
+                // glBindTexture(GL_TEXTURE_2D, batch->draws[i].textureId);
+
+                // TODO: Use indexed draw
+                vkCmdDraw(RLVK.commandBuffer, batch->draws[i].vertexCount, 1, vertexOffset, 0);
+
+                vertexOffset += (batch->draws[i].vertexCount + batch->draws[i].vertexAlignment);
+            }
+        }
+    }
+
+    // Restore viewport to default measures
+    if (eyeCount == 2) rlViewport(0, 0, RLVK.State.framebufferWidth, RLVK.State.framebufferHeight);
+    //------------------------------------------------------------------------------------------------------------
+
+    // Reset batch buffers
+    //------------------------------------------------------------------------------------------------------------
+    // Reset vertex counter for next frame
+    RLVK.State.vertexCounter = 0;
+
+    // Reset depth for next draw
+    batch->currentDepth = -1.0f;
+
+    // Restore projection/modelview matrices
+    RLVK.State.projection = matProjection;
+    RLVK.State.modelview = matModelView;
+
+    // Reset RLVK.currentBatch->draws array
+    for (int i = 0; i < RL_DEFAULT_BATCH_DRAWCALLS; i++)
+    {
+        batch->draws[i].mode = RL_QUADS;
+        batch->draws[i].vertexCount = 0;
+        batch->draws[i].textureId = RLVK.State.defaultTextureId;
+    }
+
+    // Reset active texture units for next batch
+    for (int i = 0; i < RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS; i++) RLVK.State.activeTextureId[i] = 0;
+
+    // Reset draws counter to one draw for the batch
+    batch->drawCounter = 1;
+    //------------------------------------------------------------------------------------------------------------
+
+    // Change to next buffer in the list (in case of multi-buffering)
+    batch->currentBuffer++;
+    if (batch->currentBuffer >= batch->bufferCount) batch->currentBuffer = 0;
 }
 
 void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batch for rlvk (NULL for default internal) 
@@ -3007,7 +3217,7 @@ void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batc
 
 void rlDrawRenderBatchActive(void)                // Update and draw internal render batch 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawRenderBatchActive was called.");
+    rlDrawRenderBatch(RLVK.currentBatch);
 }
 
 bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overflow for a given number of vertex 
