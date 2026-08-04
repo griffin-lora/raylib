@@ -118,17 +118,7 @@
 
 // Default internal render batch elements limits
 #ifndef RL_DEFAULT_BATCH_BUFFER_ELEMENTS
-    #if defined(GRAPHICS_API_OPENGL_11) || defined(GRAPHICS_API_OPENGL_33)
-        // This is the maximum amount of elements (quads) per batch
-        // NOTE: Be careful with text, every letter maps to a quad
-        #define RL_DEFAULT_BATCH_BUFFER_ELEMENTS  8192
-    #endif
-    #if defined(GRAPHICS_API_OPENGL_ES2)
-        // Reducing memory sizes for embedded systems (RPI and HTML5)
-        // NOTE: On HTML5 (emscripten) this is allocated on heap,
-        // by default heap is only 16MB!...just take care...
-        #define RL_DEFAULT_BATCH_BUFFER_ELEMENTS  2048
-    #endif
+    #define RL_DEFAULT_BATCH_BUFFER_ELEMENTS  8192
 #endif
 #ifndef RL_DEFAULT_BATCH_BUFFERS
     #define RL_DEFAULT_BATCH_BUFFERS                 1      // Default number of batch buffers (multi-buffering)
@@ -333,8 +323,10 @@ typedef struct rlVertexBuffer {
     float *normals;             // Vertex normal (XYZ - 3 components per vertex) (shader-location = 2)
     uint8_t *colors;      // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
     uint16_t *indices;    // Vertex indices (in case vertex data comes indexed) (6 indices per quad)
-    rlvkBuffer buffer;
-    rlvkAllocation allocation;
+    rlvkBuffer stagingBuffers[5];
+    rlvkAllocation stagingAllocations[5];
+    rlvkBuffer deviceBuffers[5];
+    rlvkAllocation deviceAllocations[5];
 } rlVertexBuffer;
 
 // Draw call type
@@ -932,6 +924,17 @@ typedef struct rlvkData {
 
     } ExtSupported;     // Extensions supported flags
 } rlvkData;
+
+static const VmaAllocationCreateInfo stagingAllocationCreateInfo = {
+    .usage = VMA_MEMORY_USAGE_AUTO,
+    .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+    .requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+};
+
+static const VmaAllocationCreateInfo deviceAllocationCreateInfo = {
+    .usage = VMA_MEMORY_USAGE_AUTO,
+    .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+};
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition
@@ -2708,6 +2711,8 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     vkDestroyPipelineLayout(RLVK.device, RLVK.pipelineLayout, 0);
     vkDestroyRenderPass(RLVK.device, RLVK.renderPass, 0);
 
+    rlUnloadRenderBatch(RLVK.defaultBatch);
+
     rlUnloadShader(RLVK.State.defaultVShaderModule);
     rlUnloadShader(RLVK.State.defaultFShaderModule);
 
@@ -2850,38 +2855,82 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
 
     // Upload to GPU (VRAM) vertex data and initialize VAOs/VBOs
     //--------------------------------------------------------------------------------------------
+    VkBufferCreateInfo stagingBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    };
+
+    VkBufferCreateInfo deviceBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+    };
     for (int i = 0; i < numBuffers; i++)
     {
-        // TODO: Obviously don't do any of this
-        // Quads - Vertex buffers binding and attributes enable
+        rlVertexBuffer* vb = &batch.vertexBuffer[i];
+
         // Vertex position buffer (shader-location = 0)
-        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[0]);
-        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[0]);
-        // glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].vertices, GL_DYNAMIC_DRAW);
-        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION]);
-        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_POSITION], 3, GL_FLOAT, 0, 0, 0);
+        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*3*4*sizeof(float);
 
-        // // Vertex texcoord buffer (shader-location = 1)
-        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[1]);
-        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[1]);
-        // glBufferData(GL_ARRAY_BUFFER, bufferElements*2*4*sizeof(float), batch.vertexBuffer[i].texcoords, GL_DYNAMIC_DRAW);
-        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01]);
-        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_TEXCOORD01], 2, GL_FLOAT, 0, 0, 0);
+        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &stagingAllocationCreateInfo, &vb->stagingBuffers[0], &vb->stagingAllocations[0], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+            return batch;
+        }
+        
+        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[0], &vb->deviceAllocations[0], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
+            return batch;
+        }
 
-        // // Vertex normal buffer (shader-location = 2)
-        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[2]);
-        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[2]);
-        // glBufferData(GL_ARRAY_BUFFER, bufferElements*3*4*sizeof(float), batch.vertexBuffer[i].normals, GL_DYNAMIC_DRAW);
-        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL]);
-        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_NORMAL], 3, GL_FLOAT, 0, 0, 0);
+        // Vertex texcoord buffer (shader-location = 1)
+        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*2*4*sizeof(float);
 
-        // // Vertex color buffer (shader-location = 3)
-        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[3]);
-        // glBindBuffer(GL_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[3]);
-        // glBufferData(GL_ARRAY_BUFFER, bufferElements*4*4*sizeof(unsigned char), batch.vertexBuffer[i].colors, GL_DYNAMIC_DRAW);
-        // glEnableVertexAttribArray(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR]);
-        // glVertexAttribPointer(RLVK.State.currentShaderLocs[RL_SHADER_LOC_VERTEX_COLOR], 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, 0);
+        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &stagingAllocationCreateInfo, &vb->stagingBuffers[1], &vb->stagingAllocations[1], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+            return batch;
+        }
+        
+        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[1], &vb->deviceAllocations[1], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
+            return batch;
+        }
 
+        // Vertex normal buffer (shader-location = 2)
+        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*3*4*sizeof(float);
+
+        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &stagingAllocationCreateInfo, &vb->stagingBuffers[2], &vb->stagingAllocations[2], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+            return batch;
+        }
+        
+        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[2], &vb->deviceAllocations[2], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
+            return batch;
+        }
+
+        // Vertex color buffer (shader-location = 3)
+        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*4*4*sizeof(float);
+
+        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &stagingAllocationCreateInfo, &vb->stagingBuffers[3], &vb->stagingAllocations[3], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+            return batch;
+        }
+        
+        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[3], &vb->deviceAllocations[3], NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
+            return batch;
+        }
+
+        // TODO: Add index buffer
         // // Fill index buffer
         // glGenBuffers(1, &batch.vertexBuffer[i].vboId[4]);
         // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[4]);
@@ -2916,7 +2965,34 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
 
 void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadRenderBatch was called.");
+    // Unload all vertex buffers data
+    for (int i = 0; i < batch.bufferCount; i++)
+    {
+        rlVertexBuffer* vb = &batch.vertexBuffer[i];
+        // Delete VBOs from GPU (VRAM)
+        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[0], vb->stagingAllocations[0]);
+        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[0], vb->deviceAllocations[0]);
+        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[1], vb->stagingAllocations[1]);
+        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[1], vb->deviceAllocations[1]);
+        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[2], vb->stagingAllocations[2]);
+        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[2], vb->deviceAllocations[2]);
+        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[3], vb->stagingAllocations[3]);
+        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[3], vb->deviceAllocations[3]);
+        // TODO: Destroy index buffers
+        // vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[4], vb->stagingAllocations[4]);
+        // vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[4], vb->deviceAllocations[4]);
+
+        // Free vertex arrays memory from CPU (RAM)
+        RL_FREE(batch.vertexBuffer[i].vertices);
+        RL_FREE(batch.vertexBuffer[i].texcoords);
+        RL_FREE(batch.vertexBuffer[i].normals);
+        RL_FREE(batch.vertexBuffer[i].colors);
+        RL_FREE(batch.vertexBuffer[i].indices);
+    }
+
+    // Unload arrays
+    RL_FREE(batch.vertexBuffer);
+    RL_FREE(batch.draws);
 }
 
 void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Update->Draw->Reset) 
