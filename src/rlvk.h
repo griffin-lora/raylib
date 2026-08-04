@@ -514,7 +514,7 @@ typedef enum {
     RL_CULL_FACE_BACK
 } rlCullMode;
 
-#define RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(object) typedef struct Vk##object##_T *rl##object;
+#define RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(object) typedef struct Vk##object##_T *rlvk##object;
 
 RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Fence)
 RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DeviceMemory)
@@ -717,11 +717,11 @@ RLAPI void rlCopyFramebuffer(int x, int y, int width, int height, int format, vo
 RLAPI void rlResizeFramebuffer(int width, int height);                    // Resize internal framebuffer
 
 // Shaders management
-RLAPI rlShaderModule rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
+RLAPI rlvkShaderModule rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
 RLAPI unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
 RLAPI unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId); // Load shader program, using already loaded shader ids
 RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId);               // Load compute shader program
-RLAPI void rlUnloadShader(unsigned int id);                                     // Unload shader, loaded with rlLoadShader()
+RLAPI void rlUnloadShader(rlvkShaderModule shaderModule);                                     // Unload shader, loaded with rlLoadShader()
 RLAPI void rlUnloadShaderProgram(unsigned int id);                              // Unload shader program
 RLAPI int rlGetLocationUniform(unsigned int id, const char *uniformName);       // Get shader location uniform, requires shader program id
 RLAPI int rlGetLocationAttrib(unsigned int id, const char *attribName);         // Get shader location attribute, requires shader program id
@@ -884,9 +884,8 @@ typedef struct rlvkData {
 
         unsigned int defaultTextureId;      // Default texture used on shapes/poly drawing (required by shader)
         unsigned int activeTextureId[RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS];    // Active texture ids to be enabled on batch drawing (0 active by default)
-        unsigned int defaultVShaderId;      // Default vertex shader id (used by default shader program)
-        unsigned int defaultFShaderId;      // Default fragment shader id (used by default shader program)
-        unsigned int defaultShaderId;       // Default shader program id, supports vertex color and diffuse texture
+        VkShaderModule defaultVShaderModule;      // Default vertex shader module
+        VkShaderModule defaultFShaderModule;      // Default fragment shader module
         int *defaultShaderLocs;             // Default shader locations pointer to be used on rendering
         unsigned int currentShaderId;       // Current shader id to be used on rendering (by default, defaultShaderId)
         int *currentShaderLocs;             // Current shader locations pointer to be used on rendering (by default, defaultShaderLocs)
@@ -2405,14 +2404,20 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     RLVK.shaderCompiler = shaderc_compiler_initialize();
     // shaderc_compile_options_t shaderCompileOptions = shaderc_compile_options_initialize();
     
-    VkShaderModule vertexShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER);
-    VkShaderModule fragmentShaderModule = rlLoadShader(defaultFShaderCode, RL_FRAGMENT_SHADER);
+    if ((RLVK.State.defaultVShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER)) == NULL)
+    {
+        return;
+    }
+    if ((RLVK.State.defaultFShaderModule = rlLoadShader(defaultFShaderCode, RL_FRAGMENT_SHADER)) == NULL)
+    {
+        return;
+    }
 
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = vertexShaderModule,
+        .module = RLVK.State.defaultVShaderModule,
         .pName = "main"
     };
 
@@ -2420,7 +2425,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = fragmentShaderModule,
+        .module = RLVK.State.defaultFShaderModule,
         .pName = "main"
     };
 
@@ -2571,9 +2576,6 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         TRACELOG(LOG_WARNING, "Vulkan: Failed to create graphics pipeline");
         return;
     }
-
-    vkDestroyShaderModule(RLVK.device, vertexShaderModule, 0);
-    vkDestroyShaderModule(RLVK.device, fragmentShaderModule, 0);
     
     RLVK.swapChainFramebuffers = RL_MALLOC(RLVK.swapChainImageCount * sizeof(VkFramebuffer));
 
@@ -2670,8 +2672,6 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlvkClose was called.");
 
     vkDeviceWaitIdle(RLVK.device);
-
-    shaderc_compiler_release(RLVK.shaderCompiler);
     
     vkDestroySemaphore(RLVK.device, RLVK.imageAvailableSemaphore, 0);
     vkDestroySemaphore(RLVK.device, RLVK.renderFinishedSemaphore, 0);
@@ -2689,6 +2689,11 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     vkDestroyPipeline(RLVK.device, RLVK.graphicsPipeline, 0);
     vkDestroyPipelineLayout(RLVK.device, RLVK.pipelineLayout, 0);
     vkDestroyRenderPass(RLVK.device, RLVK.renderPass, 0);
+
+    rlUnloadShader(RLVK.State.defaultVShaderModule);
+    rlUnloadShader(RLVK.State.defaultFShaderModule);
+
+    shaderc_compiler_release(RLVK.shaderCompiler);
 
     for (uint32_t i = 0; i < RLVK.swapChainImageCount; ++i)
     {
@@ -2765,7 +2770,7 @@ unsigned int rlGetShaderIdDefault(void)           // Get default shader id
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderIdDefault was called.");
 
-	return RLVK.State.defaultShaderId;
+	return 0;
 }
 
 int *rlGetShaderLocsDefault(void)                 // Get default shader locations 
@@ -3130,7 +3135,7 @@ void rlResizeFramebuffer(int width, int height)                     // Resize in
     TRACELOG(RL_LOG_TRACE, "rlvk function rlResizeFramebuffer was called.");
 }
 
-rlShaderModule rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
+VkShaderModule rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
 {
     shaderc_compile_options_t shaderCompileOptions = shaderc_compile_options_initialize();
 
@@ -3145,7 +3150,7 @@ rlShaderModule rlLoadShader(const char *code, int type)                     // L
     }
 
     size_t vsSpirVLength = shaderc_result_get_length(compileResult);
-    uint32_t* vsSpirvVBinary = (uint32_t *)shaderc_result_get_bytes(compileResult);
+    uint32_t *vsSpirvVBinary = (uint32_t *)shaderc_result_get_bytes(compileResult);
 
     VkShaderModuleCreateInfo shaderCreateInfo =
     {
@@ -3186,9 +3191,9 @@ unsigned int rlLoadShaderProgramCompute(unsigned int csId)                // Loa
 	return 0;
 }
 
-void rlUnloadShader(unsigned int id)                                      // Unload shader, loaded with rlLoadShader() 
+void rlUnloadShader(VkShaderModule shaderModule)                                      // Unload shader, loaded with rlLoadShader() 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShader was called.");
+    vkDestroyShaderModule(RLVK.device, shaderModule, NULL);
 }
 
 void rlUnloadShaderProgram(unsigned int id)                               // Unload shader program 
