@@ -819,7 +819,6 @@ typedef struct rlvkData {
     VmaAllocator allocator;
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
     VkFramebuffer* swapChainFramebuffers;
     VkViewport viewport;
     VkRect2D scissor;
@@ -855,8 +854,9 @@ typedef struct rlvkData {
         unsigned int activeTextureId[RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS];    // Active texture ids to be enabled on batch drawing (0 active by default)
         VkShaderModule defaultVShaderModule;      // Default vertex shader module
         VkShaderModule defaultFShaderModule;      // Default fragment shader module
+        VkPipeline defaultGraphicsPipeline;       // Default graphics pipeline, supports vertex color and diffuse texture
         int *defaultShaderLocs;             // Default shader locations pointer to be used on rendering
-        unsigned int currentShaderId;       // Current shader id to be used on rendering (by default, defaultShaderId)
+        VkPipeline currentGraphicsPipeline;       // Current graphics pipeline to be used on rendering
         int *currentShaderLocs;             // Current shader locations pointer to be used on rendering (by default, defaultShaderLocs)
 
         bool stereoRender;                  // Stereo rendering flag
@@ -1023,7 +1023,6 @@ void rlBeginFrame(void)
     };
 
     vkCmdBeginRenderPass(RLVK.renderCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.graphicsPipeline);
 
     vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.viewport);
     vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
@@ -1570,12 +1569,11 @@ void rlCubemapParameters(unsigned int id, int param, int value)  // Set cubemap 
 
 void rlEnableShader(VkPipeline pipeline)              // Enable shader program 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableShader was called.");
+    vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }
 
 void rlDisableShader(void)                        // Disable shader program 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableShader was called.");
 }
 
 void rlEnableFramebuffer(unsigned int id)         // Enable render texture (fbo) 
@@ -2422,110 +2420,16 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     "{                                  \n"
     "    finalColor = fragColor;        \n"
     "}                                  \n\0";
-    
-    if ((RLVK.State.defaultVShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER)) == NULL)
+
+    if ((RLVK.State.defaultVShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER)) == VK_NULL_HANDLE)
     {
         return;
     }
-    if ((RLVK.State.defaultFShaderModule = rlLoadShader(defaultFShaderCode, RL_FRAGMENT_SHADER)) == NULL)
+    if ((RLVK.State.defaultFShaderModule = rlLoadShader(defaultFShaderCode, RL_FRAGMENT_SHADER)) == VK_NULL_HANDLE)
     {
         return;
     }
-
-    VkPipelineShaderStageCreateInfo vertexShaderStageInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = RLVK.State.defaultVShaderModule,
-        .pName = "main"
-    };
-
-    VkPipelineShaderStageCreateInfo fragmentShaderStageInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = RLVK.State.defaultFShaderModule,
-        .pName = "main"
-    };
-
-    VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderStageInfo, fragmentShaderStageInfo };
-
-    VkDynamicState dynamicStates[] =
-    {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR
-    };
-
-    VkPipelineDynamicStateCreateInfo dynamicState =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = sizeof(dynamicStates) / sizeof(dynamicStates[0]),
-        .pDynamicStates = dynamicStates
-    };
-
-    VkVertexInputBindingDescription vertexBindings[4] = {
-        {
-            .binding = 0,
-            .stride = 3*sizeof(float),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-        },
-        {
-            .binding = 1,
-            .stride = 2*sizeof(float),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-        },
-        {
-            .binding = 2,
-            .stride = 3*sizeof(float),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-        },
-        {
-            .binding = 3,
-            .stride = 4*sizeof(uint8_t),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-        },
-    };
     
-    VkVertexInputAttributeDescription vertexAttributes[4] = {
-        {
-            .binding = 0,
-            .location = 0,
-            .format = VK_FORMAT_R32G32B32_SFLOAT
-        },
-        {
-            .binding = 1,
-            .location = 1,
-            .format = VK_FORMAT_R32G32_SFLOAT
-        },
-        {
-            .binding = 2,
-            .location = 2,
-            .format = VK_FORMAT_R32G32B32_SFLOAT
-        },
-        {
-            .binding = 3,
-            .location = 3,
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .offset = 0
-        }
-    };
-
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 4,
-        .pVertexBindingDescriptions = vertexBindings,
-        .vertexAttributeDescriptionCount = 4,
-        .pVertexAttributeDescriptions = vertexAttributes
-    };
-
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
     RLVK.viewport = (VkViewport)
     {
         .x = 0.0f,
@@ -2540,66 +2444,6 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     {
         .offset = { 0, 0 },
         .extent = RLVK.swapChainExtent
-    };
-
-    VkPipelineViewportStateCreateInfo viewportState =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .pViewports = &RLVK.viewport,
-        .scissorCount = 1,
-        .pScissors = &RLVK.scissor
-    };
-
-    VkPipelineRasterizationStateCreateInfo rasterizer =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .lineWidth = 1.0f,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-        .depthBiasConstantFactor = 0.0f, //Optional
-        .depthBiasClamp = 0.0f, //Optional
-        .depthBiasSlopeFactor = 0.0f //Optional
-    };
-
-    VkPipelineMultisampleStateCreateInfo multisampling =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable = VK_FALSE,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .minSampleShading = 1.0f, //Optional
-        .pSampleMask = 0, //Optional
-        .alphaToCoverageEnable = VK_FALSE, //Optional
-        .alphaToOneEnable = VK_FALSE //Optional
-    };
-    
-    VkPipelineColorBlendAttachmentState colorBlendAttachment =
-    {
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable = VK_TRUE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp = VK_BLEND_OP_ADD
-    };
-
-    VkPipelineColorBlendStateCreateInfo colorBlending =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY, //Optional
-        .attachmentCount = 1,
-        .pAttachments = &colorBlendAttachment,
-        .blendConstants[0] = 0.0f, //Optional
-        .blendConstants[1] = 0.0f, //Optional
-        .blendConstants[2] = 0.0f, //Optional
-        .blendConstants[3] = 0.0f, //Optional
     };
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
@@ -2617,31 +2461,12 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         return;
     }
 
-    VkGraphicsPipelineCreateInfo pipelineInfo =
+    if ((RLVK.State.defaultGraphicsPipeline = rlLoadShaderProgramEx(RLVK.State.defaultVShaderModule, RLVK.State.defaultFShaderModule)) == VK_NULL_HANDLE)
     {
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount = 2,
-        .pStages = shaderStages,
-        .pVertexInputState = &vertexInputInfo,
-        .pInputAssemblyState = &inputAssembly,
-        .pViewportState = &viewportState,
-        .pRasterizationState = &rasterizer,
-        .pMultisampleState = &multisampling,
-        .pDepthStencilState = 0, //Optional
-        .pColorBlendState = &colorBlending,
-        .pDynamicState = &dynamicState,
-        .layout = RLVK.pipelineLayout,
-        .renderPass = RLVK.renderPass,
-        .subpass = 0,
-        .basePipelineHandle = VK_NULL_HANDLE, //Optional
-        .basePipelineIndex = -1 //Optional
-    };
-
-    if (vkCreateGraphicsPipelines(RLVK.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &RLVK.graphicsPipeline) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to create graphics pipeline");
         return;
     }
+
+    RLVK.State.currentGraphicsPipeline = RLVK.State.defaultGraphicsPipeline;
     
     RLVK.swapChainFramebuffers = RL_MALLOC(RLVK.swapChainImageCount * sizeof(VkFramebuffer));
 
@@ -2757,7 +2582,7 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     
     RL_FREE(RLVK.swapChainFramebuffers);
 
-    vkDestroyPipeline(RLVK.device, RLVK.graphicsPipeline, 0);
+    rlUnloadShaderProgram(RLVK.State.defaultGraphicsPipeline);
     vkDestroyPipelineLayout(RLVK.device, RLVK.pipelineLayout, 0);
     vkDestroyRenderPass(RLVK.device, RLVK.renderPass, 0);
 
@@ -2843,7 +2668,7 @@ unsigned int rlGetTextureIdDefault(void)          // Get default texture id
 
 rlvkPipeline rlGetShaderIdDefault(void)           // Get default shader id 
 {
-	return RLVK.graphicsPipeline;
+	return RLVK.State.defaultGraphicsPipeline;
 }
 
 int *rlGetShaderLocsDefault(void)                 // Get default shader locations 
@@ -3125,9 +2950,9 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
         // Draw buffers
         if (RLVK.State.vertexCounter > 0)
         {
-            // TODO: Add custom shader support
+            // TODO: Add location support
             // Set current shader and upload current MVP matrix
-            // glUseProgram(RLVK.State.currentShaderId);
+            rlEnableShader(RLVK.State.currentGraphicsPipeline);
 
             // Create modelview-projection matrix and upload to shader
             // Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, RLVK.State.projection);
@@ -3496,12 +3321,22 @@ VkShaderModule rlLoadShader(const char *code, int type)                     // L
 }
 
 VkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
-{
-    VkShaderModule vsModule = rlLoadShader(vsCode, RL_VERTEX_SHADER);
-    if (vsModule == VK_NULL_HANDLE) {
+{   
+    VkShaderModule vsModule;
+    if (vsCode == NULL)
+    {
+        vsModule = RLVK.State.defaultVShaderModule;
+    } else if ((vsModule = rlLoadShader(vsCode, RL_VERTEX_SHADER)) == VK_NULL_HANDLE) {
         return VK_NULL_HANDLE;
     }
-    VkShaderModule fsModule = rlLoadShader(fsCode, RL_FRAGMENT_SHADER);
+
+
+    VkShaderModule fsModule;
+    if (fsCode == NULL) {
+        fsModule = RLVK.State.defaultFShaderModule;
+    } else if ((fsModule = rlLoadShader(fsCode, RL_FRAGMENT_SHADER)) == VK_NULL_HANDLE) {
+        return VK_NULL_HANDLE;
+    }
     if (fsModule == VK_NULL_HANDLE) {
         return VK_NULL_HANDLE;
     }
@@ -3716,13 +3551,13 @@ void rlUnloadShaderProgram(VkPipeline pipeline)                               //
     vkDestroyPipeline(RLVK.device, pipeline, NULL);
 }
 
-int rlGetLocationUniform(rlvkPipeline pipeline, const char *uniformName)        // Get shader location uniform, requires shader program id 
+int rlGetLocationUniform(VkPipeline pipeline, const char *uniformName)        // Get shader location uniform, requires shader program id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
 	return 0;
 }
 
-int rlGetLocationAttrib(rlvkPipeline pipeline, const char *attribName)          // Get shader location attribute, requires shader program id 
+int rlGetLocationAttrib(VkPipeline pipeline, const char *attribName)          // Get shader location attribute, requires shader program id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationAttrib was called.");
 	return 0;
@@ -3748,9 +3583,13 @@ void rlSetUniformSampler(int locIndex, unsigned int textureId)            // Set
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformSampler was called.");
 }
 
-void rlSetShader(rlvkPipeline pipeline)                              // Set shader currently active (id and locations) 
+void rlSetShader(VkPipeline pipeline)                              // Set shader currently active (id and locations) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetShader was called.");
+    if (RLVK.State.currentGraphicsPipeline != pipeline)
+    {
+        rlDrawRenderBatch(RLVK.currentBatch);
+        RLVK.State.currentGraphicsPipeline = pipeline;
+    }
 }
 
 void rlComputeShaderDispatch(unsigned int groupX, unsigned int groupY, unsigned int groupZ)  // Dispatch compute shader (equivalent to *draw* for graphics pipeline) 
