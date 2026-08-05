@@ -128,7 +128,6 @@
     #define RLGL_IMPLEMENTATION
     #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 #else
-    #define USING_RLVK
     #define RLVK_IMPLEMENTATION
     #include "rlvk.h"
 #endif
@@ -1094,13 +1093,21 @@ void EndTextureMode(void)
 // Begin custom shader mode
 void BeginShaderMode(Shader shader)
 {
+#ifndef USING_RLVK
     rlSetShader(shader.id, shader.locs);
+#else
+    rlSetShader(shader.id);
+#endif
 }
 
 // End custom shader mode (returns to default shader)
 void EndShaderMode(void)
 {
+#ifndef USING_RLVK
     rlSetShader(rlGetShaderIdDefault(), rlGetShaderLocsDefault());
+#else
+    rlSetShader(rlGetShaderIdDefault());
+#endif
 }
 
 // Begin blending mode (alpha, additive, multiplied, subtract, custom)

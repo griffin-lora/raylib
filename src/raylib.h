@@ -157,6 +157,11 @@
     #error "C++11 or later is required. Add -std=c++11"
 #endif
 
+#ifdef PLATFORM_DESKTOP_VULKAN
+    #define USING_RLVK
+    #include "rlvk_handles.h"
+#endif
+
 // NOTE: Set some defines with some data types declared by raylib
 // Other modules (raymath, rlgl) also require some of those types, so,
 // to be able to use those other modules as standalone (not depending on raylib)
@@ -373,7 +378,11 @@ typedef struct Mesh {
 
 // Shader
 typedef struct Shader {
+#ifndef USING_RLVK
     unsigned int id;        // Shader program id
+#else
+    rlvkPipeline id;
+#endif
     int *locs;              // Shader locations array (RL_MAX_SHADER_LOCATIONS)
 } Shader;
 

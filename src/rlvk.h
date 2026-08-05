@@ -75,7 +75,6 @@
 #ifndef RLVK_H
 #define RLVK_H
 
-#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -291,29 +290,7 @@ typedef struct Matrix {
 #define RL_MATRIX_TYPE
 #endif
 
-// Define rlvk handles
-#define RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(object) typedef struct Vk##object##_T *rlvk##object;
-
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Buffer)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Image)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Fence)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DeviceMemory)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Event)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(QueryPool)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(BufferView)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ImageView)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(ShaderModule)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineCache)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(PipelineLayout)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Pipeline)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(RenderPass)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSetLayout)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Sampler)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorSet)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(DescriptorPool)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Framebuffer)
-RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(CommandPool)
-typedef struct VmaAllocation_T *rlvkAllocation;
+#include "rlvk_handles.h"
 
 // Dynamic vertex buffers (position + texcoords + colors + indices arrays)
 typedef struct rlVertexBuffer {
@@ -593,7 +570,7 @@ RLAPI void rlTextureParameters(unsigned int id, int param, int value); // Set te
 RLAPI void rlCubemapParameters(unsigned int id, int param, int value); // Set cubemap parameters (filter, wrap)
 
 // Shader state
-RLAPI void rlEnableShader(unsigned int id);             // Enable shader program
+RLAPI void rlEnableShader(rlvkPipeline pipeline);             // Enable shader program
 RLAPI void rlDisableShader(void);                       // Disable shader program
 
 // Framebuffer state
@@ -656,7 +633,7 @@ RLAPI void rlSetFramebufferHeight(int height);          // Set current framebuff
 RLAPI int rlGetFramebufferHeight(void);                 // Get default framebuffer height
 
 RLAPI unsigned int rlGetTextureIdDefault(void);         // Get default texture id
-RLAPI unsigned int rlGetShaderIdDefault(void);          // Get default shader id
+RLAPI rlvkPipeline rlGetShaderIdDefault(void);          // Get default shader id
 RLAPI int *rlGetShaderLocsDefault(void);                // Get default shader locations
 
 // Render batch management
@@ -710,18 +687,18 @@ RLAPI void rlResizeFramebuffer(int width, int height);                    // Res
 
 // Shaders management
 RLAPI rlvkShaderModule rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
-RLAPI unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
-RLAPI unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId); // Load shader program, using already loaded shader ids
+RLAPI rlvkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
+RLAPI rlvkPipeline rlLoadShaderProgramEx(rlvkShaderModule vsModule, rlvkShaderModule fsModule); // Load shader program, using already loaded shader modules
 RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId);               // Load compute shader program
 RLAPI void rlUnloadShader(rlvkShaderModule shaderModule);                                     // Unload shader, loaded with rlLoadShader()
-RLAPI void rlUnloadShaderProgram(unsigned int id);                              // Unload shader program
-RLAPI int rlGetLocationUniform(unsigned int id, const char *uniformName);       // Get shader location uniform, requires shader program id
-RLAPI int rlGetLocationAttrib(unsigned int id, const char *attribName);         // Get shader location attribute, requires shader program id
+RLAPI void rlUnloadShaderProgram(rlvkPipeline pipeline);                              // Unload shader program
+RLAPI int rlGetLocationUniform(rlvkPipeline pipeline, const char *uniformName);       // Get shader location uniform, requires shader program id
+RLAPI int rlGetLocationAttrib(rlvkPipeline pipeline, const char *attribName);         // Get shader location attribute, requires shader program id
 RLAPI void rlSetUniform(int locIndex, const void *value, int uniformType, int count); // Set shader value uniform
 RLAPI void rlSetUniformMatrix(int locIndex, Matrix mat);                        // Set shader value matrix
 RLAPI void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count);    // Set shader value matrices
 RLAPI void rlSetUniformSampler(int locIndex, unsigned int textureId);           // Set shader value sampler
-RLAPI void rlSetShader(unsigned int id, int *locs);                             // Set shader currently active (id and locations)
+RLAPI void rlSetShader(rlvkPipeline pipeline);                             // Set shader currently active (id and locations)
 
 // Compute shader management
 RLAPI void rlComputeShaderDispatch(unsigned int groupX, unsigned int groupY, unsigned int groupZ); // Dispatch compute shader (equivalent to *draw* for graphics pipeline)
@@ -1591,7 +1568,7 @@ void rlCubemapParameters(unsigned int id, int param, int value)  // Set cubemap 
     TRACELOG(RL_LOG_TRACE, "rlvk function rlCubemapParameters was called.");
 }
 
-void rlEnableShader(unsigned int id)              // Enable shader program 
+void rlEnableShader(VkPipeline pipeline)              // Enable shader program 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableShader was called.");
 }
@@ -2864,11 +2841,9 @@ unsigned int rlGetTextureIdDefault(void)          // Get default texture id
 	return 0;
 }
 
-unsigned int rlGetShaderIdDefault(void)           // Get default shader id 
+rlvkPipeline rlGetShaderIdDefault(void)           // Get default shader id 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderIdDefault was called.");
-
-	return 0;
+	return RLVK.graphicsPipeline;
 }
 
 int *rlGetShaderLocsDefault(void)                 // Get default shader locations 
@@ -3520,16 +3495,209 @@ VkShaderModule rlLoadShader(const char *code, int type)                     // L
     return shaderModule;
 }
 
-unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
+VkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgram was called.");
-	return 0;
+    VkShaderModule vsModule = rlLoadShader(vsCode, RL_VERTEX_SHADER);
+    if (vsModule == VK_NULL_HANDLE) {
+        return VK_NULL_HANDLE;
+    }
+    VkShaderModule fsModule = rlLoadShader(fsCode, RL_FRAGMENT_SHADER);
+    if (fsModule == VK_NULL_HANDLE) {
+        return VK_NULL_HANDLE;
+    }
+
+    VkPipeline pipeline = rlLoadShaderProgramEx(vsModule, fsModule);
+
+    rlUnloadShader(vsModule);
+    rlUnloadShader(fsModule);
+
+    return pipeline;
 }
 
-unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId)  // Load shader program, using already loaded shader ids 
+VkPipeline rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fsModule)  // Load shader program, using already loaded shader ids 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgramEx was called.");
-	return 0;
+    VkPipelineShaderStageCreateInfo vertexShaderStageInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = vsModule,
+        .pName = "main"
+    };
+
+    VkPipelineShaderStageCreateInfo fragmentShaderStageInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = fsModule,
+        .pName = "main"
+    };
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderStageInfo, fragmentShaderStageInfo };
+
+    VkDynamicState dynamicStates[] =
+    {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicState =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = sizeof(dynamicStates) / sizeof(dynamicStates[0]),
+        .pDynamicStates = dynamicStates
+    };
+
+    VkVertexInputBindingDescription vertexBindings[4] = {
+        {
+            .binding = 0,
+            .stride = 3*sizeof(float),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+        {
+            .binding = 1,
+            .stride = 2*sizeof(float),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+        {
+            .binding = 2,
+            .stride = 3*sizeof(float),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+        {
+            .binding = 3,
+            .stride = 4*sizeof(uint8_t),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+    };
+    
+    VkVertexInputAttributeDescription vertexAttributes[4] = {
+        {
+            .binding = 0,
+            .location = 0,
+            .format = VK_FORMAT_R32G32B32_SFLOAT
+        },
+        {
+            .binding = 1,
+            .location = 1,
+            .format = VK_FORMAT_R32G32_SFLOAT
+        },
+        {
+            .binding = 2,
+            .location = 2,
+            .format = VK_FORMAT_R32G32B32_SFLOAT
+        },
+        {
+            .binding = 3,
+            .location = 3,
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .offset = 0
+        }
+    };
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = 4,
+        .pVertexBindingDescriptions = vertexBindings,
+        .vertexAttributeDescriptionCount = 4,
+        .pVertexAttributeDescriptions = vertexAttributes
+    };
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    VkPipelineViewportStateCreateInfo viewportState =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports = &RLVK.viewport,
+        .scissorCount = 1,
+        .pScissors = &RLVK.scissor
+    };
+
+    VkPipelineRasterizationStateCreateInfo rasterizer =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .lineWidth = 1.0f,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .depthBiasConstantFactor = 0.0f, //Optional
+        .depthBiasClamp = 0.0f, //Optional
+        .depthBiasSlopeFactor = 0.0f //Optional
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisampling =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable = VK_FALSE,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .minSampleShading = 1.0f, //Optional
+        .pSampleMask = 0, //Optional
+        .alphaToCoverageEnable = VK_FALSE, //Optional
+        .alphaToOneEnable = VK_FALSE //Optional
+    };
+    
+    VkPipelineColorBlendAttachmentState colorBlendAttachment =
+    {
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        .blendEnable = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp = VK_BLEND_OP_ADD
+    };
+
+    VkPipelineColorBlendStateCreateInfo colorBlending =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_COPY, //Optional
+        .attachmentCount = 1,
+        .pAttachments = &colorBlendAttachment,
+        .blendConstants[0] = 0.0f, //Optional
+        .blendConstants[1] = 0.0f, //Optional
+        .blendConstants[2] = 0.0f, //Optional
+        .blendConstants[3] = 0.0f, //Optional
+    };
+
+    VkGraphicsPipelineCreateInfo pipelineInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount = 2,
+        .pStages = shaderStages,
+        .pVertexInputState = &vertexInputInfo,
+        .pInputAssemblyState = &inputAssembly,
+        .pViewportState = &viewportState,
+        .pRasterizationState = &rasterizer,
+        .pMultisampleState = &multisampling,
+        .pDepthStencilState = 0, //Optional
+        .pColorBlendState = &colorBlending,
+        .pDynamicState = &dynamicState,
+        .layout = RLVK.pipelineLayout,
+        .renderPass = RLVK.renderPass,
+        .subpass = 0,
+        .basePipelineHandle = VK_NULL_HANDLE, //Optional
+        .basePipelineIndex = -1 //Optional
+    };
+
+    VkPipeline pipeline;
+    if (vkCreateGraphicsPipelines(RLVK.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &pipeline) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create graphics pipeline");
+        return VK_NULL_HANDLE;
+    }
+
+    return pipeline;
 }
 
 unsigned int rlLoadShaderProgramCompute(unsigned int csId)                // Load compute shader program 
@@ -3543,18 +3711,18 @@ void rlUnloadShader(VkShaderModule shaderModule)                                
     vkDestroyShaderModule(RLVK.device, shaderModule, NULL);
 }
 
-void rlUnloadShaderProgram(unsigned int id)                               // Unload shader program 
+void rlUnloadShaderProgram(VkPipeline pipeline)                               // Unload shader program 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShaderProgram was called.");
+    vkDestroyPipeline(RLVK.device, pipeline, NULL);
 }
 
-int rlGetLocationUniform(unsigned int id, const char *uniformName)        // Get shader location uniform, requires shader program id 
+int rlGetLocationUniform(rlvkPipeline pipeline, const char *uniformName)        // Get shader location uniform, requires shader program id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
 	return 0;
 }
 
-int rlGetLocationAttrib(unsigned int id, const char *attribName)          // Get shader location attribute, requires shader program id 
+int rlGetLocationAttrib(rlvkPipeline pipeline, const char *attribName)          // Get shader location attribute, requires shader program id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationAttrib was called.");
 	return 0;
@@ -3580,7 +3748,7 @@ void rlSetUniformSampler(int locIndex, unsigned int textureId)            // Set
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformSampler was called.");
 }
 
-void rlSetShader(unsigned int id, int *locs)                              // Set shader currently active (id and locations) 
+void rlSetShader(rlvkPipeline pipeline)                              // Set shader currently active (id and locations) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetShader was called.");
 }
