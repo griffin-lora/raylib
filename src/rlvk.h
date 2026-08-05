@@ -124,6 +124,9 @@
 #ifndef RL_DEFAULT_BATCH_BUFFERS
     #define RL_DEFAULT_BATCH_BUFFERS                 1      // Default number of batch buffers (multi-buffering)
 #endif
+#ifndef RL_DEFAULT_BATCH_COUNT_PER_FRAME
+    #define RL_DEFAULT_BATCH_COUNT_PER_FRAME                 16      // Default number of batches that can be drawn per frame
+#endif
 #ifndef RL_DEFAULT_BATCH_DRAWCALLS
     #define RL_DEFAULT_BATCH_DRAWCALLS             256      // Default number of batch draw calls (by state changes: mode, texture)
 #endif
@@ -844,6 +847,7 @@ typedef struct rlvkData {
 
     struct {
         int vertexCounter;                  // Current active render batch vertex counter (generic, used for all batches)
+        int batchCounter;                   // Number of batches that have been drawn so far. Used for indexing the uniform buffers.
         float texcoordx, texcoordy;         // Current active texture coordinate (added on glVertex*())
         float normalx, normaly, normalz;    // Current active normal (added on glVertex*())
         unsigned char colorr, colorg, colorb, colora;   // Current active color (added on glVertex*())
@@ -864,12 +868,11 @@ typedef struct rlvkData {
         VkPipeline defaultGraphicsPipeline;       // Default graphics pipeline, supports vertex color and diffuse texture
         VkBuffer *defaultPipelineUniformBuffers;             // Default pipeline uniform buffers to be used on rendering
         VmaAllocation *defaultPipelineUniformAllocations;         // Default pipeline uniform allocations
-        VkDescriptorSet *defaultPipelineDescriptorSets;             // Default pipeline descriptor sets to be used on rendering
+        VkDescriptorSet defaultPipelineDescriptorSet;             // Default pipeline descriptor sets to be used on rendering
         void **defaultPipelineMappedUniformBuffers;             // Default pipeline mapped uniform buffers to be used on rendering
 
         VkPipeline currentGraphicsPipeline;       // Current graphics pipeline to be used on rendering
-        VkBuffer *currentPipelineUniformBuffers;             // Current pipeline descriptor sets to be used on rendering
-        VkDescriptorSet *currentPipelineDescriptorSets;             // Current pipeline descriptor sets to be used on rendering
+        VkDescriptorSet currentPipelineDescriptorSet;             // Current pipeline descriptor set to be used on rendering
         void **currentPipelineMappedUniformBuffers;             // Current pipeline mapped uniform buffers to be used on rendering
 
         bool stereoRender;                  // Stereo rendering flag
@@ -1133,6 +1136,9 @@ static void rlUpdateBatchBuffers(rlRenderBatch *batch)
 void rlEndFrame(void)
 {   
     rlUpdateBatchBuffers(RLVK.currentBatch);
+
+    // Reset batch counter for next frame
+    RLVK.State.batchCounter = 0;
 
     vkCmdEndRenderPass(RLVK.renderCommandBuffer);
 
@@ -2559,7 +2565,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
     VkDescriptorPoolSize poolSizes[] = {
         {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .descriptorCount = 1
         },
     };
@@ -2581,7 +2587,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         {
             .descriptorCount = 1,
             .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
         }
     };
@@ -2618,7 +2624,6 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
     RLVK.State.defaultPipelineUniformBuffers = (VkBuffer *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(VkBuffer));
     RLVK.State.defaultPipelineUniformAllocations = (VmaAllocation *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(VmaAllocation));
-    RLVK.State.defaultPipelineDescriptorSets = (VkDescriptorSet *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(VkDescriptorSet));
     RLVK.State.defaultPipelineMappedUniformBuffers = (void **)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(void *));
 
     for (uint32_t i = 0; i < RL_MAX_SHADER_LOCATIONS; i++)
@@ -2630,7 +2635,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        .size = 4*4*sizeof(float)
+        .size = 4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME
     };
 
     if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.State.defaultPipelineUniformBuffers[0], &RLVK.State.defaultPipelineUniformAllocations[0], NULL) != VK_SUCCESS)
@@ -2648,14 +2653,30 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .pSetLayouts = &RLVK.descriptorSetLayout
     };
 
-    if (vkAllocateDescriptorSets(RLVK.device, &descriptorSetAllocateInfo, RLVK.State.defaultPipelineDescriptorSets) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(RLVK.device, &descriptorSetAllocateInfo, &RLVK.State.defaultPipelineDescriptorSet) != VK_SUCCESS) {
         TRACELOG(RL_LOG_WARNING, "Vma: Failed to create descriptor sets");
         return;
     }
 
+    VkDescriptorBufferInfo bufferInfo = {
+        .buffer = RLVK.State.defaultPipelineUniformBuffers[0],
+        .range = 4*4*sizeof(float)
+    };
+
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = RLVK.State.defaultPipelineDescriptorSet,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .descriptorCount = 1,
+        .pBufferInfo = &bufferInfo
+    };
+
+    vkUpdateDescriptorSets(RLVK.device, 1, &write, 0, NULL);
+
     RLVK.State.currentGraphicsPipeline = RLVK.State.defaultGraphicsPipeline;
-    RLVK.State.currentPipelineUniformBuffers = RLVK.State.defaultPipelineUniformBuffers;
-    RLVK.State.currentPipelineDescriptorSets = RLVK.State.defaultPipelineDescriptorSets;
+    RLVK.State.currentPipelineDescriptorSet = RLVK.State.defaultPipelineDescriptorSet;
     RLVK.State.currentPipelineMappedUniformBuffers = RLVK.State.defaultPipelineMappedUniformBuffers;
     
     RLVK.swapChainFramebuffers = RL_MALLOC(RLVK.swapChainImageCount * sizeof(VkFramebuffer));
@@ -2782,7 +2803,6 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
 
     RL_FREE(RLVK.State.defaultPipelineUniformBuffers);
     RL_FREE(RLVK.State.defaultPipelineUniformAllocations);
-    RL_FREE(RLVK.State.defaultPipelineDescriptorSets);
     RL_FREE(RLVK.State.defaultPipelineMappedUniformBuffers);
 
     rlUnloadShaderProgram(RLVK.State.defaultGraphicsPipeline);
@@ -3108,7 +3128,9 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             // Create modelview-projection matrix and upload to shader
             Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, RLVK.State.projection);
-            memcpy(RLVK.State.currentPipelineMappedUniformBuffers[0], rlMatrixToFloat(matMVP), 4*4*sizeof(float));
+            char *buf = RLVK.State.currentPipelineMappedUniformBuffers[0];
+            buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
+            memcpy(buf, rlMatrixToFloat(matMVP), 4*4*sizeof(float));
             // glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MVP], 1, false, rlMatrixToFloat(matMVP));
 
             // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_PROJECTION] != -1)
@@ -3133,26 +3155,13 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             // {
             //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_NORMAL], 1, false, rlMatrixToFloat(rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform))));
             // }
-
-            VkDescriptorBufferInfo bufferInfo = {
-                .buffer = RLVK.State.currentPipelineUniformBuffers[0],
-                .range = 4*4*sizeof(float)
+            
+            uint32_t descriptorOffsets[] = {
+                4*4*sizeof(float)*RLVK.State.batchCounter
             };
-
-            VkWriteDescriptorSet write = {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = RLVK.State.currentPipelineDescriptorSets[0],
-                .dstBinding = 0,
-                .dstArrayElement = 0,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptorCount = 1,
-                .pBufferInfo = &bufferInfo
-            };
-
-            vkUpdateDescriptorSets(RLVK.device, 1, &write, 0, NULL);
 
             // TODO: Look into dynamic offsets
-            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.pipelineLayout, 0, 1, RLVK.State.currentPipelineDescriptorSets, 0, NULL);
+            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.pipelineLayout, 0, 1, &RLVK.State.currentPipelineDescriptorSet, 1, descriptorOffsets);
 
             VkDeviceSize offsets[4] = { 0 };
 
@@ -3204,6 +3213,9 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
     // Reset vertex counter for next batch
     RLVK.State.vertexCounter = 0;
+
+    // Update batch counter
+    RLVK.State.batchCounter++;
 
     // Reset depth for next draw
     batch->currentDepth = -1.0f;

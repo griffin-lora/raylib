@@ -19,8 +19,11 @@ int main() {
 
         BeginDrawing();
 
-        // BeginShaderMode(shader);
-        // ClearBackground(RED);
+        BeginShaderMode(shader);
+
+        ClearBackground(RED);
+        
+        EndShaderMode();
 
         rlBegin(RL_TRIANGLES);
         
@@ -33,17 +36,11 @@ int main() {
         rlColor3f(0.0f, 0.0f, 1.0f);
         rlVertex2f(50.0f + 0.5f * width, 50.0f + (1.0f - 0.866025403784f) * height);
 
-        // rlColor3f(1.0f, 0.0f, 0.0f);
-        // rlVertex3f(0.0f + t, -0.5f, 0.0f);
-        
-        // rlColor3f(0.0f, 1.0f, 0.0f);
-        // rlVertex3f(0.5f, 0.5f, 0.0f);
-        
-        // rlColor3f(0.0f, 0.0f, 1.0f);
-        // rlVertex3f(-0.5f, 0.5f, 0.0f);
-
         rlEnd();
-        // EndShaderMode();
+
+        DrawTriangle((Vector2){430, 80},
+                        (Vector2){430 - 60, 150},
+                        (Vector2){430 + 60, 150}, VIOLET);
 
         EndDrawing();
     }
