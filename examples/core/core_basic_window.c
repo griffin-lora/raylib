@@ -9,7 +9,11 @@ int main() {
 
     SetTargetFPS(60);
 
+    float t = 0.0f;
+
     while (!WindowShouldClose()) {
+        t += 0.01f;
+
         BeginDrawing();
 
         ClearBackground(RED);
@@ -25,7 +29,7 @@ int main() {
         // rlVertex2f(50.0f + 0.5f * width, 50.0f + (1.0f - 0.866025403784f) * height);
 
         rlColor3f(1.0f, 0.0f, 0.0f);
-        rlVertex3f(0.0f, -0.5f, 0.0f);
+        rlVertex3f(0.0f + t, -0.5f, 0.0f);
         
         rlColor3f(0.0f, 1.0f, 0.0f);
         rlVertex3f(0.5f, 0.5f, 0.0f);

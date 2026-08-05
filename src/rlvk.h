@@ -1072,14 +1072,16 @@ void rlEndFrame(void)
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkSemaphore signalSemaphores[] = { RLVK.renderFinishedSemaphore };
 
+    VkCommandBuffer commandBuffers[] = { RLVK.transferCommandBuffer, RLVK.renderCommandBuffer };
+
     VkSubmitInfo submitInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = waitSemaphores,
         .pWaitDstStageMask = waitStages,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &RLVK.renderCommandBuffer,
+        .commandBufferCount = 2,
+        .pCommandBuffers = commandBuffers,
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = signalSemaphores
     };
