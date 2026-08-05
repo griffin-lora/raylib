@@ -75,6 +75,7 @@
 #ifndef RLVK_H
 #define RLVK_H
 
+#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -1030,6 +1031,8 @@ void rlBeginFrame(void)
         TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
         return;
     }
+    
+    VkClearValue clearValue = { .color = { 0, 0, 0, 0 } };
 
     VkRenderPassBeginInfo renderPassInfo =
     {
@@ -1037,7 +1040,9 @@ void rlBeginFrame(void)
         .renderPass = RLVK.renderPass,
         .framebuffer = RLVK.swapChainFramebuffers[RLVK.imageIndex],
         .renderArea.offset = { 0, 0 },
-        .renderArea.extent = RLVK.swapChainExtent
+        .renderArea.extent = RLVK.swapChainExtent,
+        .clearValueCount = 1,
+        .pClearValues = &clearValue
     };
 
     vkCmdBeginRenderPass(RLVK.renderCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -2367,7 +2372,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     {
         .format = swapChainImageFormat,
         .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -2704,20 +2709,19 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = RLVK.commandPool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1
+        .commandBufferCount = 2
     };
 
-    if (vkAllocateCommandBuffers(RLVK.device, &allocInfo, &RLVK.transferCommandBuffer) != VK_SUCCESS)
+    VkCommandBuffer commandBuffers[2];
+
+    if (vkAllocateCommandBuffers(RLVK.device, &allocInfo, commandBuffers) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to allocate command buffer");
         return;
     }
 
-    if (vkAllocateCommandBuffers(RLVK.device, &allocInfo, &RLVK.renderCommandBuffer) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to allocate command buffer");
-        return;
-    }
+    RLVK.transferCommandBuffer = commandBuffers[0];
+    RLVK.renderCommandBuffer = commandBuffers[1];
 
     VkSemaphoreCreateInfo semaphoreInfo =
     {
