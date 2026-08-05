@@ -8,7 +8,7 @@ int main() {
 
     InitWindow(width + 100.0f, height + 100.0f, "raylib [core] example - basic window");
 
-    Shader shader = LoadShader("resources/vertex.glsl", "resources/fragment.glsl");
+    Shader shader = LoadShader("examples/core/resources/vertex.glsl", "examples/core/resources/fragment.glsl");
 
     SetTargetFPS(60);
 
