@@ -26,4 +26,6 @@ RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(Framebuffer)
 RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(CommandPool)
 typedef struct VmaAllocation_T *rlvkAllocation;
 
+typedef struct rlShaderProgram rlShaderProgram;
+
 #endif // RLVK_HANDLES_H

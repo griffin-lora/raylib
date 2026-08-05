@@ -339,6 +339,18 @@ typedef struct rlRenderBatch {
     float currentDepth;         // Current depth value for next draw
 } rlRenderBatch;
 
+typedef struct rlShaderProgram {
+    rlvkPipeline pipeline;
+    rlvkPipelineLayout pipelineLayout;
+    rlvkDescriptorSet descriptorSet;
+    void **mappedUniformBuffers;
+
+    rlvkDescriptorPool descriptorPool;
+    rlvkDescriptorSetLayout descriptorSetLayout;
+    rlvkBuffer *uniformBuffers;
+    rlvkAllocation *uniformAllocations;
+} rlShaderProgram;
+
 // OpenGL version
 typedef enum {
     RL_OPENGL_SOFTWARE = 0,  // Software rendering
@@ -573,7 +585,7 @@ RLAPI void rlTextureParameters(unsigned int id, int param, int value); // Set te
 RLAPI void rlCubemapParameters(unsigned int id, int param, int value); // Set cubemap parameters (filter, wrap)
 
 // Shader state
-RLAPI void rlEnableShader(rlvkPipeline pipeline);             // Enable shader program
+RLAPI void rlEnableShader(const rlShaderProgram *program);             // Enable shader program
 RLAPI void rlDisableShader(void);                       // Disable shader program
 
 // Framebuffer state
@@ -636,7 +648,7 @@ RLAPI void rlSetFramebufferHeight(int height);          // Set current framebuff
 RLAPI int rlGetFramebufferHeight(void);                 // Get default framebuffer height
 
 RLAPI unsigned int rlGetTextureIdDefault(void);         // Get default texture id
-RLAPI rlvkPipeline rlGetShaderIdDefault(void);          // Get default shader id
+RLAPI rlShaderProgram *rlGetShaderIdDefault(void);          // Get default shader id
 RLAPI int *rlGetShaderLocsDefault(void);                // Get default shader locations
 
 // Render batch management
@@ -690,18 +702,18 @@ RLAPI void rlResizeFramebuffer(int width, int height);                    // Res
 
 // Shaders management
 RLAPI rlvkShaderModule rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
-RLAPI rlvkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
-RLAPI rlvkPipeline rlLoadShaderProgramEx(rlvkShaderModule vsModule, rlvkShaderModule fsModule); // Load shader program, using already loaded shader modules
+RLAPI rlShaderProgram rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
+RLAPI rlShaderProgram rlLoadShaderProgramEx(rlvkShaderModule vsModule, rlvkShaderModule fsModule); // Load shader program, using already loaded shader modules
 RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId);               // Load compute shader program
 RLAPI void rlUnloadShader(rlvkShaderModule shaderModule);                                     // Unload shader, loaded with rlLoadShader()
-RLAPI void rlUnloadShaderProgram(rlvkPipeline pipeline);                              // Unload shader program
-RLAPI int rlGetLocationUniform(rlvkPipeline pipeline, const char *uniformName);       // Get shader location uniform, requires shader program id
-RLAPI int rlGetLocationAttrib(rlvkPipeline pipeline, const char *attribName);         // Get shader location attribute, requires shader program id
+RLAPI void rlUnloadShaderProgram(const rlShaderProgram *program);                              // Unload shader program
+RLAPI int rlGetLocationUniform(const rlShaderProgram *program, const char *uniformName);       // Get shader location uniform, requires shader program id
+RLAPI int rlGetLocationAttrib(const rlShaderProgram *program, const char *attribName);         // Get shader location attribute, requires shader program id
 RLAPI void rlSetUniform(int locIndex, const void *value, int uniformType, int count); // Set shader value uniform
 RLAPI void rlSetUniformMatrix(int locIndex, Matrix mat);                        // Set shader value matrix
 RLAPI void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count);    // Set shader value matrices
 RLAPI void rlSetUniformSampler(int locIndex, unsigned int textureId);           // Set shader value sampler
-RLAPI void rlSetShader(rlvkPipeline pipeline);                             // Set shader currently active (id and locations)
+RLAPI void rlSetShader(const rlShaderProgram *program);                             // Set shader currently active (id and locations)
 
 // Compute shader management
 RLAPI void rlComputeShaderDispatch(unsigned int groupX, unsigned int groupY, unsigned int groupZ); // Dispatch compute shader (equivalent to *draw* for graphics pipeline)
@@ -826,9 +838,6 @@ typedef struct rlvkData {
     shaderc_compiler_t shaderCompiler;
     VmaAllocator allocator;
     VkRenderPass renderPass;
-    VkDescriptorPool descriptorPool;
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkPipelineLayout pipelineLayout;
     VkFramebuffer* swapChainFramebuffers;
     VkViewport viewport;
     VkRect2D scissor;
@@ -865,15 +874,12 @@ typedef struct rlvkData {
         unsigned int activeTextureId[RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS];    // Active texture ids to be enabled on batch drawing (0 active by default)
         VkShaderModule defaultVShaderModule;      // Default vertex shader module
         VkShaderModule defaultFShaderModule;      // Default fragment shader module
-        VkPipeline defaultGraphicsPipeline;       // Default graphics pipeline, supports vertex color and diffuse texture
-        VkBuffer *defaultPipelineUniformBuffers;             // Default pipeline uniform buffers to be used on rendering
-        VmaAllocation *defaultPipelineUniformAllocations;         // Default pipeline uniform allocations
-        VkDescriptorSet defaultPipelineDescriptorSet;             // Default pipeline descriptor sets to be used on rendering
-        void **defaultPipelineMappedUniformBuffers;             // Default pipeline mapped uniform buffers to be used on rendering
+        rlShaderProgram defaultShaderProgram;       // Default graphics shader program, supports vertex color and diffuse texture
 
         VkPipeline currentGraphicsPipeline;       // Current graphics pipeline to be used on rendering
-        VkDescriptorSet currentPipelineDescriptorSet;             // Current pipeline descriptor set to be used on rendering
-        void **currentPipelineMappedUniformBuffers;             // Current pipeline mapped uniform buffers to be used on rendering
+        VkPipelineLayout currentGraphicsPipelineLayout;       // Current graphics pipeline layout to be used on rendering
+        VkDescriptorSet currentGraphicsPipelineDescriptorSet;             // Current pipeline descriptor set to be used on rendering
+        void **currentGraphicsPipelineMappedUniformBuffers;             // Current pipeline mapped uniform buffers to be used on rendering
 
         bool stereoRender;                  // Stereo rendering flag
         Matrix projectionStereo[2];         // VR stereo rendering eyes projection matrices
@@ -1681,9 +1687,9 @@ void rlCubemapParameters(unsigned int id, int param, int value)  // Set cubemap 
     TRACELOG(RL_LOG_TRACE, "rlvk function rlCubemapParameters was called.");
 }
 
-void rlEnableShader(VkPipeline pipeline)              // Enable shader program 
+void rlEnableShader(const rlShaderProgram *program)              // Enable shader program 
 {
-    vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, program->pipeline);
 }
 
 void rlDisableShader(void)                        // Disable shader program 
@@ -2563,121 +2569,13 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .extent = RLVK.swapChainExtent
     };
 
-    VkDescriptorPoolSize poolSizes[] = {
-        {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount = 1
-        },
-    };
+    // TODO: Handle errors here
+    RLVK.State.defaultShaderProgram = rlLoadShaderProgramEx(RLVK.State.defaultVShaderModule, RLVK.State.defaultFShaderModule);
 
-    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .poolSizeCount = 1,
-        .pPoolSizes = poolSizes,
-        .maxSets = 1
-    };
-
-    if (vkCreateDescriptorPool(RLVK.device, &descriptorPoolCreateInfo, NULL, &RLVK.descriptorPool) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor pool");
-        return;
-    }
-
-    VkDescriptorSetLayoutBinding descriptorSetBindings[] = {
-        {
-            .descriptorCount = 1,
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-        }
-    };
-
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = descriptorSetBindings
-    };
-
-    if (vkCreateDescriptorSetLayout(RLVK.device, &descriptorSetLayoutCreateInfo, 0, &RLVK.descriptorSetLayout) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor set layout");
-        return;
-    }
-
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts = &RLVK.descriptorSetLayout
-    };
-
-    if (vkCreatePipelineLayout(RLVK.device, &pipelineLayoutInfo, 0, &RLVK.pipelineLayout) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to create pipeline layout");
-        return;
-    }
-
-    if ((RLVK.State.defaultGraphicsPipeline = rlLoadShaderProgramEx(RLVK.State.defaultVShaderModule, RLVK.State.defaultFShaderModule)) == VK_NULL_HANDLE)
-    {
-        return;
-    }
-
-    RLVK.State.defaultPipelineUniformBuffers = (VkBuffer *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(VkBuffer));
-    RLVK.State.defaultPipelineUniformAllocations = (VmaAllocation *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(VmaAllocation));
-    RLVK.State.defaultPipelineMappedUniformBuffers = (void **)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(void *));
-
-    for (uint32_t i = 0; i < RL_MAX_SHADER_LOCATIONS; i++)
-    {
-        RLVK.State.defaultPipelineUniformBuffers[i] = VK_NULL_HANDLE;
-    }
-
-    VkBufferCreateInfo uniformBufferCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        .size = 4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME
-    };
-
-    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.State.defaultPipelineUniformBuffers[0], &RLVK.State.defaultPipelineUniformAllocations[0], NULL) != VK_SUCCESS)
-    {
-        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
-        return;
-    }
-
-    vmaMapMemory(RLVK.allocator, RLVK.State.defaultPipelineUniformAllocations[0], &RLVK.State.defaultPipelineMappedUniformBuffers[0]);
-
-    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = RLVK.descriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &RLVK.descriptorSetLayout
-    };
-
-    if (vkAllocateDescriptorSets(RLVK.device, &descriptorSetAllocateInfo, &RLVK.State.defaultPipelineDescriptorSet) != VK_SUCCESS) {
-        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create descriptor sets");
-        return;
-    }
-
-    VkDescriptorBufferInfo bufferInfo = {
-        .buffer = RLVK.State.defaultPipelineUniformBuffers[0],
-        .range = 4*4*sizeof(float)
-    };
-
-    VkWriteDescriptorSet write = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = RLVK.State.defaultPipelineDescriptorSet,
-        .dstBinding = 0,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        .descriptorCount = 1,
-        .pBufferInfo = &bufferInfo
-    };
-
-    vkUpdateDescriptorSets(RLVK.device, 1, &write, 0, NULL);
-
-    RLVK.State.currentGraphicsPipeline = RLVK.State.defaultGraphicsPipeline;
-    RLVK.State.currentPipelineDescriptorSet = RLVK.State.defaultPipelineDescriptorSet;
-    RLVK.State.currentPipelineMappedUniformBuffers = RLVK.State.defaultPipelineMappedUniformBuffers;
+    RLVK.State.currentGraphicsPipeline = RLVK.State.defaultShaderProgram.pipeline;
+    RLVK.State.currentGraphicsPipelineLayout = RLVK.State.defaultShaderProgram.pipelineLayout;
+    RLVK.State.currentGraphicsPipelineDescriptorSet = RLVK.State.defaultShaderProgram.descriptorSet;
+    RLVK.State.currentGraphicsPipelineMappedUniformBuffers = RLVK.State.defaultShaderProgram.mappedUniformBuffers;
     
     RLVK.swapChainFramebuffers = RL_MALLOC(RLVK.swapChainImageCount * sizeof(VkFramebuffer));
 
@@ -2791,24 +2689,7 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     
     RL_FREE(RLVK.swapChainFramebuffers);
 
-    for (uint32_t i = 0; i < RL_MAX_SHADER_LOCATIONS; i++)
-    {
-        if (RLVK.State.defaultPipelineUniformBuffers[i] == VK_NULL_HANDLE)
-        {
-            continue;
-        }
-        vmaUnmapMemory(RLVK.allocator, RLVK.State.defaultPipelineUniformAllocations[i]);
-        vmaDestroyBuffer(RLVK.allocator, RLVK.State.defaultPipelineUniformBuffers[i], RLVK.State.defaultPipelineUniformAllocations[i]);
-    }
-
-    RL_FREE(RLVK.State.defaultPipelineUniformBuffers);
-    RL_FREE(RLVK.State.defaultPipelineUniformAllocations);
-    RL_FREE(RLVK.State.defaultPipelineMappedUniformBuffers);
-
-    rlUnloadShaderProgram(RLVK.State.defaultGraphicsPipeline);
-    vkDestroyDescriptorPool(RLVK.device, RLVK.descriptorPool, NULL);
-    vkDestroyDescriptorSetLayout(RLVK.device, RLVK.descriptorSetLayout, NULL);
-    vkDestroyPipelineLayout(RLVK.device, RLVK.pipelineLayout, 0);
+    rlUnloadShaderProgram(&RLVK.State.defaultShaderProgram);
     vkDestroyRenderPass(RLVK.device, RLVK.renderPass, 0);
 
     rlUnloadRenderBatch(RLVK.defaultBatch);
@@ -2891,9 +2772,9 @@ unsigned int rlGetTextureIdDefault(void)          // Get default texture id
 	return 0;
 }
 
-rlvkPipeline rlGetShaderIdDefault(void)           // Get default shader id 
+rlShaderProgram *rlGetShaderIdDefault(void)           // Get default shader id 
 {
-	return RLVK.State.defaultGraphicsPipeline;
+	return &RLVK.State.defaultShaderProgram;
 }
 
 int *rlGetShaderLocsDefault(void)                 // Get default shader locations 
@@ -3124,11 +3005,11 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
         {
             // TODO: Add location support
             // Set current shader and upload current MVP matrix
-            rlEnableShader(RLVK.State.currentGraphicsPipeline);
+            vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipeline);
 
             // Create modelview-projection matrix and upload to shader
             Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, RLVK.State.projection);
-            char *buf = RLVK.State.currentPipelineMappedUniformBuffers[0];
+            char *buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[0];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(matMVP), 4*4*sizeof(float));
             // glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MVP], 1, false, rlMatrixToFloat(matMVP));
@@ -3160,8 +3041,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
                 4*4*sizeof(float)*RLVK.State.batchCounter
             };
 
-            // TODO: Look into dynamic offsets
-            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.pipelineLayout, 0, 1, &RLVK.State.currentPipelineDescriptorSet, 1, descriptorOffsets);
+            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &RLVK.State.currentGraphicsPipelineDescriptorSet, 1, descriptorOffsets);
 
             VkDeviceSize offsets[4] = { 0 };
 
@@ -3512,14 +3392,16 @@ VkShaderModule rlLoadShader(const char *code, int type)                     // L
     return shaderModule;
 }
 
-VkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
+rlShaderProgram rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
 {   
+    rlShaderProgram program = { 0 };
+
     VkShaderModule vsModule;
     if (vsCode == NULL)
     {
         vsModule = RLVK.State.defaultVShaderModule;
     } else if ((vsModule = rlLoadShader(vsCode, RL_VERTEX_SHADER)) == VK_NULL_HANDLE) {
-        return VK_NULL_HANDLE;
+        return program;
     }
 
 
@@ -3527,13 +3409,13 @@ VkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load 
     if (fsCode == NULL) {
         fsModule = RLVK.State.defaultFShaderModule;
     } else if ((fsModule = rlLoadShader(fsCode, RL_FRAGMENT_SHADER)) == VK_NULL_HANDLE) {
-        return VK_NULL_HANDLE;
+        return program;
     }
     if (fsModule == VK_NULL_HANDLE) {
-        return VK_NULL_HANDLE;
+        return program;
     }
 
-    VkPipeline pipeline = rlLoadShaderProgramEx(vsModule, fsModule);
+    program = rlLoadShaderProgramEx(vsModule, fsModule);
 
     if (vsCode != NULL)
     {
@@ -3544,11 +3426,124 @@ VkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load 
         rlUnloadShader(fsModule);
     }
 
-    return pipeline;
+    return program;
 }
 
-VkPipeline rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fsModule)  // Load shader program, using already loaded shader ids 
+rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fsModule)  // Load shader program, using already loaded shader modules 
 {
+    rlShaderProgram program = { 0 };
+
+    // Create descriptor sets and layouts
+
+    VkDescriptorPoolSize poolSizes[] = {
+        {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1
+        },
+    };
+
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .poolSizeCount = 1,
+        .pPoolSizes = poolSizes,
+        .maxSets = 1
+    };
+
+    if (vkCreateDescriptorPool(RLVK.device, &descriptorPoolCreateInfo, NULL, &program.descriptorPool) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor pool");
+        return program;
+    }
+
+    VkDescriptorSetLayoutBinding descriptorSetBindings[] = {
+        {
+            .descriptorCount = 1,
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        }
+    };
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings = descriptorSetBindings
+    };
+
+    if (vkCreateDescriptorSetLayout(RLVK.device, &descriptorSetLayoutCreateInfo, 0, &program.descriptorSetLayout) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor set layout");
+        return program;
+    }
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &program.descriptorSetLayout
+    };
+
+    if (vkCreatePipelineLayout(RLVK.device, &pipelineLayoutInfo, 0, &program.pipelineLayout) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create pipeline layout");
+        return program;
+    }
+
+    program.uniformBuffers = (VkBuffer *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(VkBuffer));
+    program.uniformAllocations = (VmaAllocation *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(VmaAllocation));
+    program.mappedUniformBuffers = (void **)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(void *));
+
+    for (uint32_t i = 0; i < RL_MAX_SHADER_LOCATIONS; i++)
+    {
+        program.uniformBuffers[i] = VK_NULL_HANDLE;
+    }
+
+    VkBufferCreateInfo uniformBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        .size = 4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME
+    };
+
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[0], &program.uniformAllocations[0], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return program;
+    }
+
+    vmaMapMemory(RLVK.allocator, program.uniformAllocations[0], &program.mappedUniformBuffers[0]);
+
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = program.descriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &program.descriptorSetLayout
+    };
+
+    if (vkAllocateDescriptorSets(RLVK.device, &descriptorSetAllocateInfo, &program.descriptorSet) != VK_SUCCESS) {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create descriptor sets");
+        return program;
+    }
+
+    VkDescriptorBufferInfo bufferInfo = {
+        .buffer = program.uniformBuffers[0],
+        .range = 4*4*sizeof(float)
+    };
+
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = program.descriptorSet,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .descriptorCount = 1,
+        .pBufferInfo = &bufferInfo
+    };
+
+    vkUpdateDescriptorSets(RLVK.device, 1, &write, 0, NULL);
+
+    // Create graphics pipeline
+
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -3716,21 +3711,20 @@ VkPipeline rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fsModul
         .pDepthStencilState = 0, //Optional
         .pColorBlendState = &colorBlending,
         .pDynamicState = &dynamicState,
-        .layout = RLVK.pipelineLayout,
+        .layout = program.pipelineLayout,
         .renderPass = RLVK.renderPass,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE, //Optional
         .basePipelineIndex = -1 //Optional
     };
 
-    VkPipeline pipeline;
-    if (vkCreateGraphicsPipelines(RLVK.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &pipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(RLVK.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &program.pipeline) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to create graphics pipeline");
-        return VK_NULL_HANDLE;
+        return program;
     }
 
-    return pipeline;
+    return program;
 }
 
 unsigned int rlLoadShaderProgramCompute(unsigned int csId)                // Load compute shader program 
@@ -3744,18 +3738,35 @@ void rlUnloadShader(VkShaderModule shaderModule)                                
     vkDestroyShaderModule(RLVK.device, shaderModule, NULL);
 }
 
-void rlUnloadShaderProgram(VkPipeline pipeline)                               // Unload shader program 
+void rlUnloadShaderProgram(const rlShaderProgram *program)                               // Unload shader program 
 {
-    vkDestroyPipeline(RLVK.device, pipeline, NULL);
+    for (uint32_t i = 0; i < RL_MAX_SHADER_LOCATIONS; i++)
+    {
+        if (program->uniformBuffers[i] == VK_NULL_HANDLE)
+        {
+            continue;
+        }
+        vmaUnmapMemory(RLVK.allocator, program->uniformAllocations[i]);
+        vmaDestroyBuffer(RLVK.allocator, program->uniformBuffers[i], program->uniformAllocations[i]);
+    }
+
+    RL_FREE(program->uniformBuffers);
+    RL_FREE(program->uniformAllocations);
+    RL_FREE(program->mappedUniformBuffers);
+    
+    vkDestroyPipeline(RLVK.device, program->pipeline, NULL);
+    vkDestroyPipelineLayout(RLVK.device, program->pipelineLayout, 0);
+    vkDestroyDescriptorPool(RLVK.device, program->descriptorPool, NULL);
+    vkDestroyDescriptorSetLayout(RLVK.device, program->descriptorSetLayout, NULL);
 }
 
-int rlGetLocationUniform(VkPipeline pipeline, const char *uniformName)        // Get shader location uniform, requires shader program id 
+int rlGetLocationUniform(const rlShaderProgram *program, const char *uniformName)        // Get shader location uniform, requires shader program id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
 	return 0;
 }
 
-int rlGetLocationAttrib(VkPipeline pipeline, const char *attribName)          // Get shader location attribute, requires shader program id 
+int rlGetLocationAttrib(const rlShaderProgram *program, const char *attribName)          // Get shader location attribute, requires shader program id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationAttrib was called.");
 	return 0;
@@ -3781,12 +3792,16 @@ void rlSetUniformSampler(int locIndex, unsigned int textureId)            // Set
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformSampler was called.");
 }
 
-void rlSetShader(VkPipeline pipeline)                              // Set shader currently active (id and locations) 
+void rlSetShader(const rlShaderProgram *program)                              // Set shader currently active (id and locations) 
 {
-    if (RLVK.State.currentGraphicsPipeline != pipeline)
+    if (RLVK.State.currentGraphicsPipeline != program->pipeline)
     {
         rlDrawRenderBatch(RLVK.currentBatch);
-        RLVK.State.currentGraphicsPipeline = pipeline;
+
+        RLVK.State.currentGraphicsPipeline = program->pipeline;
+        RLVK.State.currentGraphicsPipelineLayout = program->pipelineLayout;
+        RLVK.State.currentGraphicsPipelineDescriptorSet = program->descriptorSet;
+        RLVK.State.currentGraphicsPipelineMappedUniformBuffers = program->mappedUniformBuffers;
     }
 }
 

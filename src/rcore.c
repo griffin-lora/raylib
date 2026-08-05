@@ -1288,7 +1288,12 @@ Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode)
 {
     Shader shader = { 0 };
 
+#ifdef USING_RLVK
+    shader.id = RL_MALLOC(sizeof(rlShaderProgram));
+    *shader.id = rlLoadShaderProgram(vsCode, fsCode);
+#else
     shader.id = rlLoadShaderProgram(vsCode, fsCode);
+#endif
 
     if (shader.id == 0)
     {
@@ -1385,6 +1390,9 @@ void UnloadShader(Shader shader)
     if (shader.id != rlGetShaderIdDefault())
     {
         rlUnloadShaderProgram(shader.id);
+    #ifdef USING_RLVK
+        RL_FREE(shader.id);
+    #endif
 
         // NOTE: If shader loading failed, it should be 0
         RL_FREE(shader.locs);

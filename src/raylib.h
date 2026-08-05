@@ -381,7 +381,7 @@ typedef struct Shader {
 #ifndef USING_RLVK
     unsigned int id;        // Shader program id
 #else
-    rlvkPipeline id;
+    rlShaderProgram *id;
 #endif
     int *locs;              // Shader locations array (RL_MAX_SHADER_LOCATIONS)
 } Shader;
