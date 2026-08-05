@@ -1865,22 +1865,22 @@ void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned ch
     rlBegin(RL_TRIANGLES);
 
     rlColor4ub(r, g, b, a);
-    rlVertex3f(-1.0f, -1.0f, 0.0f);
+    rlVertex2f(RLVK.viewport.width, 0.0f);
     
     rlColor4ub(r, g, b, a);
-    rlVertex3f(1.0f, 1.0f, 0.0f);
+    rlVertex2f(0.0f, 0.0f);
     
     rlColor4ub(r, g, b, a);
-    rlVertex3f(-1.0f, 1.0f, 0.0f);
+    rlVertex2f(0.0f, RLVK.viewport.height);
 
     rlColor4ub(r, g, b, a);
-    rlVertex3f(-1.0f, -1.0f, 0.0f);
+    rlVertex2f(RLVK.viewport.width, 0.0f);
     
     rlColor4ub(r, g, b, a);
-    rlVertex3f(1.0f, -1.0f, 0.0f);
+    rlVertex2f(0.0f, RLVK.viewport.height);
     
     rlColor4ub(r, g, b, a);
-    rlVertex3f(1.0f, 1.0f, 0.0f);
+    rlVertex2f(RLVK.viewport.width, RLVK.viewport.height);
 
     rlEnd();
 }
@@ -2569,8 +2569,11 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .extent = RLVK.swapChainExtent
     };
 
-    // TODO: Handle errors here
     RLVK.State.defaultShaderProgram = rlLoadShaderProgramEx(RLVK.State.defaultVShaderModule, RLVK.State.defaultFShaderModule);
+    if (RLVK.State.defaultShaderProgram.pipeline == VK_NULL_HANDLE)
+    {
+        return;
+    }
 
     RLVK.State.currentGraphicsPipeline = RLVK.State.defaultShaderProgram.pipeline;
     RLVK.State.currentGraphicsPipelineLayout = RLVK.State.defaultShaderProgram.pipelineLayout;
