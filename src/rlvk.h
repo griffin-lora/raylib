@@ -75,6 +75,7 @@
 #ifndef RLVK_H
 #define RLVK_H
 
+#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -511,8 +512,6 @@ typedef enum {
 extern "C" {            // Prevents name mangling of functions
 #endif
 
-RLAPI void rlBeginFrame(void);
-RLAPI void rlEndFrame(void);
 RLAPI void rlMatrixMode(int mode);                      // Choose the current matrix to be transformed
 RLAPI void rlPushMatrix(void);                          // Push the current matrix to stack
 RLAPI void rlPopMatrix(void);                           // Pop latest inserted matrix from stack
@@ -729,6 +728,11 @@ RLAPI void rlSetMatrixViewOffsetStereo(Matrix right, Matrix left);        // Set
 // Quick and dirty cube/quad buffers load->draw->unload
 RLAPI void rlLoadDrawCube(void);     // Load and draw a cube
 RLAPI void rlLoadDrawQuad(void);     // Load and draw a quad
+
+// Extra Vulkan specific functions
+RLAPI void rlBeginFrame(void);
+RLAPI void rlEndFrame(void);
+RLAPI void rlWaitIdle(void);
 
 #if defined(__cplusplus)
 }
@@ -2567,8 +2571,6 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
 {
     TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlvkClose was called.");
 
-    vkDeviceWaitIdle(RLVK.device);
-    
     vkDestroySemaphore(RLVK.device, RLVK.imageAvailableSemaphore, 0);
     vkDestroySemaphore(RLVK.device, RLVK.renderFinishedSemaphore, 0);
     vkDestroyFence(RLVK.device, RLVK.inFlightFence, 0);
@@ -3706,6 +3708,10 @@ void rlLoadDrawCube(void)      // Load and draw a cube
 void rlLoadDrawQuad(void)      // Load and draw a qua 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadDrawQuad was called.");
+}
+
+void rlWaitIdle(void) {
+    vkDeviceWaitIdle(RLVK.device);
 }
 
 #endif // RLVK_IMPLEMENTATION

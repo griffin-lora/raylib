@@ -168,12 +168,24 @@ static void DeallocateWrapper(void *block, void *user);                         
 // Module Functions Definition: Window and Graphics Device
 //----------------------------------------------------------------------------------
 
+static bool WindowShouldCloseInternal(void)
+{
+    if (CORE.Window.ready) return CORE.Window.shouldClose;
+    else return true;
+}
+
 // Check if application should close
 // NOTE: By default, if KEY_ESCAPE pressed or window close icon clicked
 bool WindowShouldClose(void)
 {
-    if (CORE.Window.ready) return CORE.Window.shouldClose;
-    else return true;
+    if (WindowShouldCloseInternal())
+    {
+        rlWaitIdle();
+        return true;
+    } else
+    {
+        return false;
+    }
 }
 
 // Toggle fullscreen mode

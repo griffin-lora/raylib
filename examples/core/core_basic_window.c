@@ -20,7 +20,7 @@ int main() {
         BeginDrawing();
 
         ClearBackground(RED);
-        // BeginShaderMode(shader);
+        BeginShaderMode(shader);
 
         rlBegin(RL_TRIANGLES);
         
@@ -43,7 +43,7 @@ int main() {
         rlVertex3f(-0.5f, 0.5f, 0.0f);
 
         rlEnd();
-        // EndShaderMode();
+        EndShaderMode();
 
         EndDrawing();
     }
