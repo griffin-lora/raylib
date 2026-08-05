@@ -908,6 +908,10 @@ void BeginDrawing(void)
 
     //rlTranslatef(0.375, 0.375, 0);    // HACK to have 2D pixel-perfect drawing on OpenGL 1.1
                                         // NOTE: Not required with OpenGL 3.3+
+
+#ifdef USING_RLVK
+    rlBeginFrame();
+#endif
 }
 
 // End canvas (framebuffer) drawing and swap buffers (double buffering)
@@ -917,6 +921,10 @@ void EndDrawing(void)
 
 #if SUPPORT_AUTOMATION_EVENTS
     if (automationEventRecording) RecordAutomationEvent();    // Event recording
+#endif
+
+#ifdef USING_RLVK
+    rlEndFrame();
 #endif
 
 #if !SUPPORT_CUSTOM_FRAME_CONTROL

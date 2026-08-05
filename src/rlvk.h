@@ -533,6 +533,8 @@ typedef enum {
 extern "C" {            // Prevents name mangling of functions
 #endif
 
+RLAPI void rlBeginFrame(void);
+RLAPI void rlEndFrame(void);
 RLAPI void rlMatrixMode(int mode);                      // Choose the current matrix to be transformed
 RLAPI void rlPushMatrix(void);                          // Push the current matrix to stack
 RLAPI void rlPopMatrix(void);                           // Pop latest inserted matrix from stack
@@ -844,7 +846,8 @@ typedef struct rlvkData {
     VkViewport viewport;
     VkRect2D scissor;
     VkCommandPool commandPool;
-    VkCommandBuffer commandBuffer;
+    VkCommandBuffer transferCommandBuffer;
+    VkCommandBuffer renderCommandBuffer;
     uint32_t imageIndex;
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
@@ -1001,32 +1004,33 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL rlVulkanDebugCallback(
 }
 #endif
 
-
-static void rlBeginFrame(void)
+void rlBeginFrame(void)
 {
     vkWaitForFences(RLVK.device, 1, &RLVK.inFlightFence, VK_TRUE, UINT64_MAX);
     vkResetFences(RLVK.device, 1, &RLVK.inFlightFence);
 
     vkAcquireNextImageKHR(RLVK.device, RLVK.swapChain, UINT64_MAX, RLVK.imageAvailableSemaphore, VK_NULL_HANDLE, &RLVK.imageIndex);
 
-    vkResetCommandBuffer(RLVK.commandBuffer, 0);
+    vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
+    vkResetCommandBuffer(RLVK.renderCommandBuffer, 0);
 
     VkCommandBufferBeginInfo beginInfo =
     {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = 0, //Optional
-        .pInheritanceInfo = 0 //Optional
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
 
-    if (vkBeginCommandBuffer(RLVK.commandBuffer, &beginInfo) != VK_SUCCESS)
+    if (vkBeginCommandBuffer(RLVK.renderCommandBuffer, &beginInfo) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
         return;
     }
-}
 
-static void rlBeginRenderPass(void)
-{
+    if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
+        return;
+    }
+
     VkRenderPassBeginInfo renderPassInfo =
     {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -1036,21 +1040,24 @@ static void rlBeginRenderPass(void)
         .renderArea.extent = RLVK.swapChainExtent
     };
 
-    vkCmdBeginRenderPass(RLVK.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(RLVK.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.graphicsPipeline);
+    vkCmdBeginRenderPass(RLVK.renderCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.graphicsPipeline);
 
-    vkCmdSetViewport(RLVK.commandBuffer, 0, 1, &RLVK.viewport);
-    vkCmdSetScissor(RLVK.commandBuffer, 0, 1, &RLVK.scissor);
+    vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.viewport);
+    vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
 }
 
-static void rlEndRenderPass(void)
+void rlEndFrame(void)
 {
-    vkCmdEndRenderPass(RLVK.commandBuffer);
-}
+    vkCmdEndRenderPass(RLVK.renderCommandBuffer);
 
-static void rlEndFrame(void)
-{
-    if (vkEndCommandBuffer(RLVK.commandBuffer) != VK_SUCCESS)
+    if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
+        return;
+    }
+
+    if (vkEndCommandBuffer(RLVK.renderCommandBuffer) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
         return;
@@ -1067,7 +1074,7 @@ static void rlEndFrame(void)
         .pWaitSemaphores = waitSemaphores,
         .pWaitDstStageMask = waitStages,
         .commandBufferCount = 1,
-        .pCommandBuffers = &RLVK.commandBuffer,
+        .pCommandBuffers = &RLVK.renderCommandBuffer,
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = signalSemaphores
     };
@@ -2360,9 +2367,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     {
         .format = swapChainImageFormat,
         .samples = VK_SAMPLE_COUNT_1_BIT,
-        //VK_ATTACHMENT_LOAD_OP_LOAD if we want to load the previous frame
-        //VK_ATTACHMENT_LOAD_OP_CLEAR if we want to clear on frame begin, which can be useful for performance reasons
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -2702,7 +2707,13 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .commandBufferCount = 1
     };
 
-    if (vkAllocateCommandBuffers(RLVK.device, &allocInfo, &RLVK.commandBuffer) != VK_SUCCESS)
+    if (vkAllocateCommandBuffers(RLVK.device, &allocInfo, &RLVK.transferCommandBuffer) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to allocate command buffer");
+        return;
+    }
+
+    if (vkAllocateCommandBuffers(RLVK.device, &allocInfo, &RLVK.renderCommandBuffer) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to allocate command buffer");
         return;
@@ -2987,7 +2998,7 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
         }
 
         // TODO: Add index buffer
-        // // Fill index buffer
+        // Fill index buffer
         // glGenBuffers(1, &batch.vertexBuffer[i].vboId[4]);
         // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[4]);
         // glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferElements*6*sizeof(short), batch.vertexBuffer[i].indices, GL_STATIC_DRAW);
@@ -3053,10 +3064,6 @@ void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system
 
 void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Update->Draw->Reset) 
 {
-    // TODO: Don't call rlBeginFrame and rlBeginRenderPass within the render batch function
-
-    rlBeginFrame();
-
     const rlVertexBuffer* vb = &batch->vertexBuffer[batch->currentBuffer];
         
     // Update batch vertex buffers
@@ -3076,7 +3083,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
         }
         memcpy(mappedData, vb->vertices, bufferCopy.size);
         vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[0]);
-        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[0], vb->deviceBuffers[0], 1, &bufferCopy);
+        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[0], vb->deviceBuffers[0], 1, &bufferCopy);
 
         // Texture coordinates buffer
         bufferCopy.size = RLVK.State.vertexCounter*2*sizeof(float);
@@ -3087,7 +3094,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
         }
         memcpy(mappedData, vb->texcoords, bufferCopy.size);
         vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[1]);
-        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[1], vb->deviceBuffers[1], 1, &bufferCopy);
+        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[1], vb->deviceBuffers[1], 1, &bufferCopy);
 
         // Normals buffer
         bufferCopy.size = RLVK.State.vertexCounter*3*sizeof(float);
@@ -3098,7 +3105,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
         }
         memcpy(mappedData, vb->normals, bufferCopy.size);
         vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[2]);
-        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[2], vb->deviceBuffers[2], 1, &bufferCopy);
+        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[2], vb->deviceBuffers[2], 1, &bufferCopy);
 
         // Colors buffer
         bufferCopy.size = RLVK.State.vertexCounter*4*sizeof(uint8_t);
@@ -3109,7 +3116,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
         }
         memcpy(mappedData, vb->colors, bufferCopy.size);
         vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[3]);
-        vkCmdCopyBuffer(RLVK.commandBuffer, vb->stagingBuffers[3], vb->deviceBuffers[3], 1, &bufferCopy);
+        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[3], vb->deviceBuffers[3], 1, &bufferCopy);
     }
     //------------------------------------------------------------------------------------------------------------
 
@@ -3121,8 +3128,6 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     int eyeCount = 1;
     if (RLVK.State.stereoRender) eyeCount = 2;
     
-    rlBeginRenderPass();
-
     for (int eye = 0; eye < eyeCount; eye++)
     {
         if (eyeCount == 2)
@@ -3173,7 +3178,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             VkDeviceSize offsets[4] = { 0 };
 
             // Bind all vertex buffers (all in one command!)
-            vkCmdBindVertexBuffers(RLVK.commandBuffer, 0, 4, vb->deviceBuffers, offsets);
+            vkCmdBindVertexBuffers(RLVK.renderCommandBuffer, 0, 4, vb->deviceBuffers, offsets);
 
             // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch->vertexBuffer[batch->currentBuffer].vboId[4]);
 
@@ -3202,7 +3207,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
                 // glBindTexture(GL_TEXTURE_2D, batch->draws[i].textureId);
 
                 // TODO: Use indexed draw
-                vkCmdDraw(RLVK.commandBuffer, batch->draws[i].vertexCount, 1, vertexOffset, 0);
+                vkCmdDraw(RLVK.renderCommandBuffer, batch->draws[i].vertexCount, 1, vertexOffset, 0);
 
                 vertexOffset += (batch->draws[i].vertexCount + batch->draws[i].vertexAlignment);
             }
@@ -3243,9 +3248,6 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     // Change to next buffer in the list (in case of multi-buffering)
     batch->currentBuffer++;
     if (batch->currentBuffer >= batch->bufferCount) batch->currentBuffer = 0;
-
-    rlEndRenderPass();
-    rlEndFrame();
 }
 
 void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batch for rlvk (NULL for default internal) 
