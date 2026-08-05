@@ -3058,7 +3058,10 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
 void rlSetRenderBatchActive(rlRenderBatch *batch)  // Set the active render batch for rlvk (NULL for default internal) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetRenderBatchActive was called.");
+    rlDrawRenderBatch(RLVK.currentBatch);
+
+    if (batch != NULL) RLVK.currentBatch = batch;
+    else RLVK.currentBatch = &RLVK.defaultBatch;
 }
 
 void rlDrawRenderBatchActive(void)                // Update and draw internal render batch 
@@ -3343,8 +3346,14 @@ VkPipeline rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load 
 
     VkPipeline pipeline = rlLoadShaderProgramEx(vsModule, fsModule);
 
-    rlUnloadShader(vsModule);
-    rlUnloadShader(fsModule);
+    if (vsCode != NULL)
+    {
+        rlUnloadShader(vsModule);
+    }
+    if (fsCode != NULL)
+    {
+        rlUnloadShader(fsModule);
+    }
 
     return pipeline;
 }

@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <raylib.h>
 #include <rlvk.h>
 
@@ -6,6 +7,8 @@ int main() {
     float height = 1500.0f;
 
     InitWindow(width + 100.0f, height + 100.0f, "raylib [core] example - basic window");
+
+    Shader shader = LoadShader("resources/vertex.glsl", "resources/fragment.glsl");
 
     SetTargetFPS(60);
 
@@ -17,6 +20,8 @@ int main() {
         BeginDrawing();
 
         ClearBackground(RED);
+        // BeginShaderMode(shader);
+
         rlBegin(RL_TRIANGLES);
         
         // rlColor3f(1.0f, 0.0f, 0.0f);
@@ -38,9 +43,12 @@ int main() {
         rlVertex3f(-0.5f, 0.5f, 0.0f);
 
         rlEnd();
+        // EndShaderMode();
 
         EndDrawing();
     }
+
+    UnloadShader(shader);
 
     CloseWindow();
 
