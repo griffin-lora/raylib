@@ -437,7 +437,11 @@ typedef enum {
     RL_SHADER_LOC_VERTEX_NORMAL,        // Shader location: vertex attribute: normal
     RL_SHADER_LOC_VERTEX_TANGENT,       // Shader location: vertex attribute: tangent
     RL_SHADER_LOC_VERTEX_COLOR,         // Shader location: vertex attribute: color
-    RL_SHADER_LOC_MATRIX_MVP,           // Shader location: matrix uniform: model-view-projection
+} rlShaderAttributeLocationIndex;
+
+// Shader location point type
+typedef enum {
+    RL_SHADER_LOC_MATRIX_MVP = 0,           // Shader location: matrix uniform: model-view-projection
     RL_SHADER_LOC_MATRIX_VIEW,          // Shader location: matrix uniform: view (camera transform)
     RL_SHADER_LOC_MATRIX_PROJECTION,    // Shader location: matrix uniform: projection
     RL_SHADER_LOC_MATRIX_MODEL,         // Shader location: matrix uniform: model (transform)
@@ -457,7 +461,7 @@ typedef enum {
     RL_SHADER_LOC_MAP_IRRADIANCE,       // Shader location: samplerCube texture: irradiance
     RL_SHADER_LOC_MAP_PREFILTER,        // Shader location: samplerCube texture: prefilter
     RL_SHADER_LOC_MAP_BRDF              // Shader location: sampler2d texture: brdf
-} rlShaderLocationIndex;
+} rlShaderUniformLocationIndex;
 
 #define RL_SHADER_LOC_MAP_DIFFUSE       RL_SHADER_LOC_MAP_ALBEDO
 #define RL_SHADER_LOC_MAP_SPECULAR      RL_SHADER_LOC_MAP_METALNESS
@@ -1008,6 +1012,79 @@ static Matrix rlMatrixMultiply(Matrix left, Matrix right)
     result.m13 = left.m12*right.m1 + left.m13*right.m5 + left.m14*right.m9 + left.m15*right.m13;
     result.m14 = left.m12*right.m2 + left.m13*right.m6 + left.m14*right.m10 + left.m15*right.m14;
     result.m15 = left.m12*right.m3 + left.m13*right.m7 + left.m14*right.m11 + left.m15*right.m15;
+
+    return result;
+}
+
+
+// Transposes provided matrix
+static Matrix rlMatrixTranspose(Matrix mat)
+{
+    Matrix result = { 0 };
+
+    result.m0 = mat.m0;
+    result.m1 = mat.m4;
+    result.m2 = mat.m8;
+    result.m3 = mat.m12;
+    result.m4 = mat.m1;
+    result.m5 = mat.m5;
+    result.m6 = mat.m9;
+    result.m7 = mat.m13;
+    result.m8 = mat.m2;
+    result.m9 = mat.m6;
+    result.m10 = mat.m10;
+    result.m11 = mat.m14;
+    result.m12 = mat.m3;
+    result.m13 = mat.m7;
+    result.m14 = mat.m11;
+    result.m15 = mat.m15;
+
+    return result;
+}
+
+// Invert provided matrix
+static Matrix rlMatrixInvert(Matrix mat)
+{
+    Matrix result = { 0 };
+
+    // Cache the matrix values (speed optimization)
+    float a00 = mat.m0, a01 = mat.m1, a02 = mat.m2, a03 = mat.m3;
+    float a10 = mat.m4, a11 = mat.m5, a12 = mat.m6, a13 = mat.m7;
+    float a20 = mat.m8, a21 = mat.m9, a22 = mat.m10, a23 = mat.m11;
+    float a30 = mat.m12, a31 = mat.m13, a32 = mat.m14, a33 = mat.m15;
+
+    float b00 = a00*a11 - a01*a10;
+    float b01 = a00*a12 - a02*a10;
+    float b02 = a00*a13 - a03*a10;
+    float b03 = a01*a12 - a02*a11;
+    float b04 = a01*a13 - a03*a11;
+    float b05 = a02*a13 - a03*a12;
+    float b06 = a20*a31 - a21*a30;
+    float b07 = a20*a32 - a22*a30;
+    float b08 = a20*a33 - a23*a30;
+    float b09 = a21*a32 - a22*a31;
+    float b10 = a21*a33 - a23*a31;
+    float b11 = a22*a33 - a23*a32;
+
+    // Calculate the invert determinant (inlined to avoid double-caching)
+    float invDet = 1.0f/(b00*b11 - b01*b10 + b02*b09 + b03*b08 - b04*b07 + b05*b06);
+
+    result.m0 = (a11*b11 - a12*b10 + a13*b09)*invDet;
+    result.m1 = (-a01*b11 + a02*b10 - a03*b09)*invDet;
+    result.m2 = (a31*b05 - a32*b04 + a33*b03)*invDet;
+    result.m3 = (-a21*b05 + a22*b04 - a23*b03)*invDet;
+    result.m4 = (-a10*b11 + a12*b08 - a13*b07)*invDet;
+    result.m5 = (a00*b11 - a02*b08 + a03*b07)*invDet;
+    result.m6 = (-a30*b05 + a32*b02 - a33*b01)*invDet;
+    result.m7 = (a20*b05 - a22*b02 + a23*b01)*invDet;
+    result.m8 = (a10*b10 - a11*b08 + a13*b06)*invDet;
+    result.m9 = (-a00*b10 + a01*b08 - a03*b06)*invDet;
+    result.m10 = (a30*b04 - a31*b02 + a33*b00)*invDet;
+    result.m11 = (-a20*b04 + a21*b02 - a23*b00)*invDet;
+    result.m12 = (-a10*b09 + a11*b07 - a12*b06)*invDet;
+    result.m13 = (a00*b09 - a01*b07 + a02*b06)*invDet;
+    result.m14 = (-a30*b03 + a31*b01 - a32*b00)*invDet;
+    result.m15 = (a20*b03 - a21*b01 + a22*b00)*invDet;
 
     return result;
 }
@@ -3012,39 +3089,40 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             // Create modelview-projection matrix and upload to shader
             Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, RLVK.State.projection);
-            char *buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[0];
+            char *buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_MVP];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(matMVP), 4*4*sizeof(float));
-            // glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MVP], 1, false, rlMatrixToFloat(matMVP));
 
-            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_PROJECTION] != -1)
-            // {
-            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_PROJECTION], 1, false, rlMatrixToFloat(RLVK.State.projection));
-            // }
+            // location 1 matrix projection
+            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION];
+            buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
+            memcpy(buf, rlMatrixToFloat(RLVK.State.projection), 4*4*sizeof(float));
 
-            // // WARNING: For the following setup of the view, model, and normal matrices, it is expected that
-            // // transformations and rendering occur between rlPushMatrix() and rlPopMatrix()
+            // location 2 matrix view
+            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_VIEW];
+            buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
+            memcpy(buf, rlMatrixToFloat(RLVK.State.modelview), 4*4*sizeof(float));
 
-            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_VIEW] != -1)
-            // {
-            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_VIEW], 1, false, rlMatrixToFloat(RLVK.State.modelview));
-            // }
+            // location 3 matrix model
+            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_MODEL];
+            buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
+            memcpy(buf, rlMatrixToFloat(RLVK.State.transform), 4*4*sizeof(float));
 
-            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MODEL] != -1)
-            // {
-            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_MODEL], 1, false, rlMatrixToFloat(RLVK.State.transform));
-            // }
-
-            // if (RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_NORMAL] != -1)
-            // {
-            //     glUniformMatrix4fv(RLVK.State.currentShaderLocs[RL_SHADER_LOC_MATRIX_NORMAL], 1, false, rlMatrixToFloat(rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform))));
-            // }
+            // location 4 matrix normal
+            Matrix normal = rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform));
+            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL];
+            buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
+            memcpy(buf, rlMatrixToFloat(normal), 4*4*sizeof(float));
             
             uint32_t descriptorOffsets[] = {
+                4*4*sizeof(float)*RLVK.State.batchCounter,
+                4*4*sizeof(float)*RLVK.State.batchCounter,
+                4*4*sizeof(float)*RLVK.State.batchCounter,
+                4*4*sizeof(float)*RLVK.State.batchCounter,
                 4*4*sizeof(float)*RLVK.State.batchCounter
             };
 
-            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &RLVK.State.currentGraphicsPipelineDescriptorSet, 1, descriptorOffsets);
+            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &RLVK.State.currentGraphicsPipelineDescriptorSet, 5, descriptorOffsets);
 
             VkDeviceSize offsets[4] = { 0 };
 
@@ -3441,7 +3519,7 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
     VkDescriptorPoolSize poolSizes[] = {
         {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount = 1
+            .descriptorCount = 5
         },
     };
 
@@ -3464,12 +3542,36 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
             .binding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 3,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 4,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
         }
     };
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
+        .bindingCount = 5,
         .pBindings = descriptorSetBindings
     };
 
@@ -3501,21 +3603,6 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
         program.uniformBuffers[i] = VK_NULL_HANDLE;
     }
 
-    VkBufferCreateInfo uniformBufferCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        .size = 4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME
-    };
-
-    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[0], &program.uniformAllocations[0], NULL) != VK_SUCCESS)
-    {
-        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
-        return program;
-    }
-
-    vmaMapMemory(RLVK.allocator, program.uniformAllocations[0], &program.mappedUniformBuffers[0]);
-
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool = program.descriptorPool,
@@ -3528,22 +3615,95 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
         return program;
     }
 
-    VkDescriptorBufferInfo bufferInfo = {
-        .buffer = program.uniformBuffers[0],
+    VkBufferCreateInfo uniformBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    };
+
+    VkDescriptorBufferInfo uniformBufferInfos[5];
+    VkWriteDescriptorSet uniformWrites[5];
+
+    for (uint32_t i = 0; i < 5; i++)
+    {
+        VkWriteDescriptorSet write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = program.descriptorSet,
+            .dstArrayElement = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1,
+            .pBufferInfo = &uniformBufferInfos[i]
+        };
+        uniformWrites[i] = write;
+    }
+
+    // location 0 matrix mvp
+    uniformBufferCreateInfo.size = 4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME;
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[RL_SHADER_LOC_MATRIX_MVP], &program.uniformAllocations[RL_SHADER_LOC_MATRIX_MVP], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return program;
+    }
+    vmaMapMemory(RLVK.allocator, program.uniformAllocations[RL_SHADER_LOC_MATRIX_MVP], &program.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_MVP]);
+    uniformBufferInfos[0] = (VkDescriptorBufferInfo) {
+        .buffer = program.uniformBuffers[RL_SHADER_LOC_MATRIX_MVP],
         .range = 4*4*sizeof(float)
     };
+    uniformWrites[0].dstBinding = RL_SHADER_LOC_MATRIX_MVP;
 
-    VkWriteDescriptorSet write = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = program.descriptorSet,
-        .dstBinding = 0,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        .descriptorCount = 1,
-        .pBufferInfo = &bufferInfo
+    // location 1 matrix view
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[RL_SHADER_LOC_MATRIX_VIEW], &program.uniformAllocations[RL_SHADER_LOC_MATRIX_VIEW], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return program;
+    }
+    vmaMapMemory(RLVK.allocator, program.uniformAllocations[RL_SHADER_LOC_MATRIX_VIEW], &program.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_VIEW]);
+    uniformBufferInfos[1] = (VkDescriptorBufferInfo) {
+        .buffer = program.uniformBuffers[RL_SHADER_LOC_MATRIX_VIEW],
+        .range = 4*4*sizeof(float)
     };
+    uniformWrites[1].dstBinding = RL_SHADER_LOC_MATRIX_VIEW;
 
-    vkUpdateDescriptorSets(RLVK.device, 1, &write, 0, NULL);
+    // location 2 matrix projection
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION], &program.uniformAllocations[RL_SHADER_LOC_MATRIX_PROJECTION], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return program;
+    }
+    vmaMapMemory(RLVK.allocator, program.uniformAllocations[RL_SHADER_LOC_MATRIX_PROJECTION], &program.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION]);
+    uniformBufferInfos[2] = (VkDescriptorBufferInfo) {
+        .buffer = program.uniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[2].dstBinding = RL_SHADER_LOC_MATRIX_PROJECTION;
+
+    // location 3 matrix model
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[RL_SHADER_LOC_MATRIX_MODEL], &program.uniformAllocations[RL_SHADER_LOC_MATRIX_MODEL], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return program;
+    }
+    vmaMapMemory(RLVK.allocator, program.uniformAllocations[RL_SHADER_LOC_MATRIX_MODEL], &program.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_MODEL]);
+    uniformBufferInfos[3] = (VkDescriptorBufferInfo) {
+        .buffer = program.uniformBuffers[RL_SHADER_LOC_MATRIX_MODEL],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[3].dstBinding = RL_SHADER_LOC_MATRIX_MODEL;
+
+    // location 4 matrix normal
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL], &program.uniformAllocations[RL_SHADER_LOC_MATRIX_NORMAL], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return program;
+    }
+    vmaMapMemory(RLVK.allocator, program.uniformAllocations[RL_SHADER_LOC_MATRIX_NORMAL], &program.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL]);
+    uniformBufferInfos[4] = (VkDescriptorBufferInfo) {
+        .buffer = program.uniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[4].dstBinding = RL_SHADER_LOC_MATRIX_NORMAL;
+
+    vkUpdateDescriptorSets(RLVK.device, 1, uniformWrites, 0, NULL);
 
     // Create graphics pipeline
 
