@@ -3064,6 +3064,13 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     Matrix matProjection = RLVK.State.projection;
     Matrix matModelView = RLVK.State.modelview;
 
+    Matrix flipVertical = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, -1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
+
     int eyeCount = 1;
     if (RLVK.State.stereoRender) eyeCount = 2;
     
@@ -3088,7 +3095,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipeline);
 
             // Create modelview-projection matrix and upload to shader
-            Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, RLVK.State.projection);
+            Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, rlMatrixMultiply(RLVK.State.projection, flipVertical));
             char *buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_MVP];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(matMVP), 4*4*sizeof(float));
@@ -3818,7 +3825,7 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
         .polygonMode = VK_POLYGON_MODE_FILL,
         .lineWidth = 1.0f,
         .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0.0f, //Optional
         .depthBiasClamp = 0.0f, //Optional

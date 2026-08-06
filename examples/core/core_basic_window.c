@@ -8,8 +8,6 @@ int main() {
 
     InitWindow(width + 100.0f, height + 100.0f, "raylib [core] example - basic window");
 
-    Shader shader = LoadShader("examples/core/resources/vertex.glsl", "examples/core/resources/fragment.glsl");
-
     SetTargetFPS(60);
 
     float t = 0.0f;
@@ -18,9 +16,6 @@ int main() {
         t += 0.01f;
 
         BeginDrawing();
-
-        BeginShaderMode(shader);
-
         ClearBackground(RED);
         
         EndShaderMode();
@@ -38,14 +33,9 @@ int main() {
 
         rlEnd();
 
-        DrawTriangle((Vector2){430, 80},
-                        (Vector2){430 - 60, 150},
-                        (Vector2){430 + 60, 150}, VIOLET);
-
+        DrawRectangle(0, 0, 100, 100, CLITERAL(Color){ 255, 0, 0, 255 });
         EndDrawing();
     }
-
-    UnloadShader(shader);
 
     CloseWindow();
 
