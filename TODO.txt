@@ -1,5 +1,4 @@
 Add (better) pipeline layout support
 Add quad support
-Switch to Vulkan 1.3
 Use vk-bootstrap
 Fix color space issues

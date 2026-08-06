@@ -1156,9 +1156,8 @@ void rlBeginFrame(void)
 
     vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.viewport);
     vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
+    vkCmdSetPrimitiveTopology(RLVK.renderCommandBuffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 }
-
-
 
 static void rlUpdateBatchBuffers(rlRenderBatch *batch)
 {
@@ -1998,7 +1997,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
         .pEngineName = "Raylib",
         .engineVersion = VK_MAKE_VERSION(4, 5, 0),
-        .apiVersion = VK_API_VERSION_1_0
+        .apiVersion = VK_API_VERSION_1_3
     };
 
     uint32_t vulkanExtensionCount = 0;
@@ -2529,7 +2528,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .device = RLVK.device,
         .pAllocationCallbacks = NULL,
         .pDeviceMemoryCallbacks = NULL,
-        .vulkanApiVersion = VK_API_VERSION_1_0,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
         .flags = 0 // Don't think any are needed
     };
 
@@ -3248,7 +3247,12 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
                 // TODO: Use indexed draw
 
-                if ((batch->draws[i].mode == RL_LINES) || (batch->draws[i].mode == RL_TRIANGLES)) vkCmdDraw(RLVK.renderCommandBuffer, batch->draws[i].vertexCount, 1, vertexOffset, 0);
+                if ((batch->draws[i].mode == RL_LINES) || (batch->draws[i].mode == RL_TRIANGLES))
+                {
+                    if (batch->draws[i].mode == RL_LINES) vkCmdSetPrimitiveTopology(RLVK.renderCommandBuffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+                    vkCmdDraw(RLVK.renderCommandBuffer, batch->draws[i].vertexCount, 1, vertexOffset, 0);
+                    if (batch->draws[i].mode == RL_LINES) vkCmdSetPrimitiveTopology(RLVK.renderCommandBuffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+                }
                 else
                 {
                     // The number of indices to be processed needs to be defined: elementCount*6
@@ -3827,7 +3831,8 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
     VkDynamicState dynamicStates[] =
     {
         VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR
+        VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY
     };
 
     VkPipelineDynamicStateCreateInfo dynamicState =
