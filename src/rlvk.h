@@ -2379,7 +2379,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         if (formatCount == 1 && formats[0].format == VK_FORMAT_UNDEFINED)
         {
             //This means we can choose any format
-			surfaceFormat.format = VK_FORMAT_R8G8B8A8_UNORM;
+			surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
             surfaceFormat.colorSpace = formats[0].colorSpace; //TODO: Idk what to put here lol
 		}
 
@@ -2387,9 +2387,8 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         {
             VkSurfaceFormatKHR* availableFormat = &formats[i];
 
-            //For SRGB
-            //if (availableFormat->format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat->colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-            if (availableFormat->format == VK_FORMAT_R8G8B8A8_UNORM)
+            //For UNORM
+            if (availableFormat->format == VK_FORMAT_B8G8R8A8_UNORM)
             {
                 foundAvailableFormat = true;
                 surfaceFormat = *availableFormat;
@@ -3146,6 +3145,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     Matrix matProjection = RLVK.State.projection;
     Matrix matModelView = RLVK.State.modelview;
 
+    // Since Vulkan has a flipped vertical axis from OpenGL, flip it
     Matrix flipVertical = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, -1.0f, 0.0f, 0.0f,

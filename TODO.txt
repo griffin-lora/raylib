@@ -1,4 +1,4 @@
 Add (better) pipeline layout support
-Add quad support
 Use vk-bootstrap
 Fix color space issues
+Add textures
