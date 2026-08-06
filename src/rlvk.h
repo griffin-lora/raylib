@@ -305,7 +305,7 @@ typedef struct rlVertexBuffer {
     float *texcoords;           // Vertex texture coordinates (UV - 2 components per vertex) (shader-location = 1)
     float *normals;             // Vertex normal (XYZ - 3 components per vertex) (shader-location = 2)
     uint8_t *colors;      // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
-    uint16_t *indices;    // Vertex indices (in case vertex data comes indexed) (6 indices per quad)
+
     rlvkBuffer stagingBuffers[5];
     rlvkAllocation stagingAllocations[5];
     rlvkBuffer deviceBuffers[5];
@@ -852,6 +852,9 @@ typedef struct rlvkData {
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
     VkFence inFlightFence;
+    VkFence transferFence;
+    VkBuffer quadIndexBuffer;
+    VmaAllocation quadIndexAllocation;
 
     //-----------
 
@@ -2727,9 +2730,16 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .flags = VK_FENCE_CREATE_SIGNALED_BIT
     };
 
+    VkFenceCreateInfo transferFenceInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+    };
+
     if (vkCreateSemaphore(RLVK.device, &semaphoreInfo, 0, &RLVK.imageAvailableSemaphore) != VK_SUCCESS ||
         vkCreateSemaphore(RLVK.device, &semaphoreInfo, 0, &RLVK.renderFinishedSemaphore) != VK_SUCCESS ||
-        vkCreateFence(RLVK.device, &fenceInfo, 0, &RLVK.inFlightFence) != VK_SUCCESS)
+        vkCreateFence(RLVK.device, &fenceInfo, 0, &RLVK.inFlightFence) != VK_SUCCESS ||
+        vkCreateFence(RLVK.device, &transferFenceInfo, 0, &RLVK.transferFence) != VK_SUCCESS
+    )
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to create semaphores");
         return;
@@ -2737,6 +2747,92 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
     RLVK.defaultBatch = rlLoadRenderBatch(RL_DEFAULT_BATCH_BUFFERS, RL_DEFAULT_BATCH_BUFFER_ELEMENTS);
     RLVK.currentBatch = &RLVK.defaultBatch;
+
+    // Setup index buffer
+    const uint16_t quadIndices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    VkBufferCreateInfo stagingBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .size = sizeof(quadIndices)
+    };
+
+    VkBufferCreateInfo deviceBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        .size = sizeof(quadIndices)
+    };
+
+    VkBuffer indexStagingBuffer;
+    VmaAllocation indexStagingAllocation;
+
+    if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &indexStagingBuffer, &indexStagingAllocation, NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+        return;
+    }
+    
+    if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &RLVK.quadIndexBuffer, &RLVK.quadIndexAllocation, NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
+        return;
+    }
+
+    VkCommandBufferBeginInfo beginInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
+        return;
+    }
+
+    void* mappedData;
+    VkBufferCopy bufferCopy = {
+        .size = sizeof(quadIndices)
+    };
+
+    if (vmaMapMemory(RLVK.allocator, indexStagingAllocation, &mappedData) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+        return;
+    }
+    memcpy(mappedData, quadIndices, sizeof(quadIndices));
+    vmaUnmapMemory(RLVK.allocator, indexStagingAllocation);
+    vkCmdCopyBuffer(RLVK.transferCommandBuffer, indexStagingBuffer, RLVK.quadIndexBuffer, 1, &bufferCopy);
+
+    if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
+        return;
+    }
+
+    VkSubmitInfo submitInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &RLVK.transferCommandBuffer
+    };
+
+    if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.transferFence) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to submit transfer command buffer");
+        return;
+    }
+
+    vkWaitForFences(RLVK.device, 1, &RLVK.transferFence, VK_TRUE, UINT64_MAX);
+    vkResetFences(RLVK.device, 1, &RLVK.transferFence);
+    vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
+
+    vmaDestroyBuffer(RLVK.allocator, indexStagingBuffer, indexStagingAllocation);
 
     // Init stack matrices (emulating OpenGL 1.1)
     for (int i = 0; i < RL_MAX_MATRIX_STACK_SIZE; i++) RLVK.State.stack[i] = rlMatrixIdentity();
@@ -2754,11 +2850,12 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
 void rlvkClose(void)                              // De-initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlvkClose was called.");
+    vmaDestroyBuffer(RLVK.allocator, RLVK.quadIndexBuffer, RLVK.quadIndexAllocation);
 
     vkDestroySemaphore(RLVK.device, RLVK.imageAvailableSemaphore, 0);
     vkDestroySemaphore(RLVK.device, RLVK.renderFinishedSemaphore, 0);
     vkDestroyFence(RLVK.device, RLVK.inFlightFence, 0);
+    vkDestroyFence(RLVK.device, RLVK.transferFence, 0);
 
     vkDestroyCommandPool(RLVK.device, RLVK.commandPool, 0);
 
@@ -2883,27 +2980,11 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
         batch.vertexBuffer[i].texcoords = (float *)RL_CALLOC(bufferElements*2*4, sizeof(float));    // 2 float by texcoord, 4 texcoord by quad
         batch.vertexBuffer[i].normals = (float *)RL_CALLOC(bufferElements*3*4, sizeof(float));      // 3 float by vertex, 4 vertex by quad
         batch.vertexBuffer[i].colors = (uint8_t *)RL_CALLOC(bufferElements*4*4, sizeof(uint8_t));   // 4 float by color, 4 colors by quad
-        batch.vertexBuffer[i].indices = (uint16_t *)RL_CALLOC(bufferElements*6, sizeof(uint16_t));      // 6 int by quad (indices)
 
         for (int j = 0; j < (3*4*bufferElements); j++) batch.vertexBuffer[i].vertices[j] = 0.0f;
         for (int j = 0; j < (2*4*bufferElements); j++) batch.vertexBuffer[i].texcoords[j] = 0.0f;
         for (int j = 0; j < (3*4*bufferElements); j++) batch.vertexBuffer[i].normals[j] = 0.0f;
         for (int j = 0; j < (4*4*bufferElements); j++) batch.vertexBuffer[i].colors[j] = 0;
-
-        int k = 0;
-
-        // Indices can be initialized right now
-        for (int j = 0; j < (6*bufferElements); j += 6)
-        {
-            batch.vertexBuffer[i].indices[j] = 4*k;
-            batch.vertexBuffer[i].indices[j + 1] = 4*k + 1;
-            batch.vertexBuffer[i].indices[j + 2] = 4*k + 2;
-            batch.vertexBuffer[i].indices[j + 3] = 4*k;
-            batch.vertexBuffer[i].indices[j + 4] = 4*k + 2;
-            batch.vertexBuffer[i].indices[j + 5] = 4*k + 3;
-
-            k++;
-        }
 
         RLVK.State.vertexCounter = 0;
     }
@@ -2987,12 +3068,6 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
             TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
             return batch;
         }
-
-        // TODO: Add index buffer
-        // Fill index buffer
-        // glGenBuffers(1, &batch.vertexBuffer[i].vboId[4]);
-        // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch.vertexBuffer[i].vboId[4]);
-        // glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferElements*6*sizeof(short), batch.vertexBuffer[i].indices, GL_STATIC_DRAW);
     }
 
     TRACELOG(RL_LOG_INFO, "RLVK: Render batch vertex buffers loaded successfully in VRAM (GPU)");
@@ -3045,7 +3120,6 @@ void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system
         RL_FREE(batch.vertexBuffer[i].texcoords);
         RL_FREE(batch.vertexBuffer[i].normals);
         RL_FREE(batch.vertexBuffer[i].colors);
-        RL_FREE(batch.vertexBuffer[i].indices);
     }
 
     // Unload arrays
@@ -3135,6 +3209,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             // Bind all vertex buffers (all in one command!)
             vkCmdBindVertexBuffers(RLVK.renderCommandBuffer, 0, 4, vb->deviceBuffers, offsets);
+            vkCmdBindIndexBuffer(RLVK.renderCommandBuffer, RLVK.quadIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
             // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch->vertexBuffer[batch->currentBuffer].vboId[4]);
 
@@ -3163,7 +3238,15 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
                 // glBindTexture(GL_TEXTURE_2D, batch->draws[i].textureId);
 
                 // TODO: Use indexed draw
-                vkCmdDraw(RLVK.renderCommandBuffer, batch->draws[i].vertexCount, 1, vertexOffset, 0);
+
+                if ((batch->draws[i].mode == RL_LINES) || (batch->draws[i].mode == RL_TRIANGLES)) vkCmdDraw(RLVK.renderCommandBuffer, batch->draws[i].vertexCount, 1, vertexOffset, 0);
+                else
+                {
+                    // The number of indices to be processed needs to be defined: elementCount*6
+                    // NOTE: The final parameter tells the GPU the offset in bytes from the
+                    // start of the index buffer to the location of the first index to process
+                    vkCmdDrawIndexed(RLVK.renderCommandBuffer, batch->draws[i].vertexCount/4*6, 1, 0, vertexOffset, 0);
+                }
 
                 vertexOffset += (batch->draws[i].vertexCount + batch->draws[i].vertexAlignment);
             }

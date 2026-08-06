@@ -17,23 +17,8 @@ int main() {
 
         BeginDrawing();
         ClearBackground(RED);
-        
-        EndShaderMode();
 
-        rlBegin(RL_TRIANGLES);
-        
-        rlColor3f(1.0f, 0.0f, 0.0f);
-        rlVertex2f(50.0f, 50.0f + height);
-        
-        rlColor3f(0.0f, 1.0f, 0.0f);
-        rlVertex2f(50.0f + width, 50.0f + height);
-        
-        rlColor3f(0.0f, 0.0f, 1.0f);
-        rlVertex2f(50.0f + 0.5f * width, 50.0f + (1.0f - 0.866025403784f) * height);
-
-        rlEnd();
-
-        DrawRectangle(0, 0, 100, 100, CLITERAL(Color){ 255, 0, 0, 255 });
+        DrawRectangle(0, 0, 100, 100, BLUE);
         EndDrawing();
     }
 
