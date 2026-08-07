@@ -1,3 +1,4 @@
-Add (better) pipeline layout support
+Add (better) pipeline layout support (possibly use a unified descriptor set system?)
 Use vk-bootstrap
 Add textures
+Fix loading error bugs (returning batch and program)

@@ -75,7 +75,6 @@
 #ifndef RLVK_H
 #define RLVK_H
 
-#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -296,6 +295,14 @@ typedef struct Matrix {
 
 #include "rlvk_handles.h"
 
+typedef struct {
+    rlvkSampler sampler;
+    rlvkImage image;
+    rlvkImageView view;
+    rlvkAllocation allocation;
+    rlvkDescriptorSet descriptorSet;
+} rlTexture;
+
 // Dynamic vertex buffers (position + texcoords + colors + indices arrays)
 typedef struct rlVertexBuffer {
     int elementCount;           // Number of elements in the buffer (QUADS)
@@ -322,7 +329,7 @@ typedef struct rlDrawCall {
     int vertexAlignment;        // Number of vertex required for index alignment (LINES, TRIANGLES)
     //unsigned int vaoId;       // Vertex array id to be used on the draw -> Using RLVK.currentBatch->vertexBuffer.vaoId
     //unsigned int shaderId;    // Shader id to be used on the draw -> Using RLVK.currentShaderId
-    unsigned int textureId;     // Texture id to be used on the draw -> Use to create new draw call if changes
+    rlvkDescriptorSet textureDescriptorSet;     // Texture descriptor set to be used on the draw -> Use to create new draw call if changes
 
     //Matrix projection;        // Projection matrix for this draw -> Using RLVK.projection by default
     //Matrix modelview;         // Modelview matrix for this draw -> Using RLVK.modelview by default
@@ -686,13 +693,13 @@ RLAPI void rlDrawVertexArrayInstanced(int offset, int count, int instances); // 
 RLAPI void rlDrawVertexArrayElementsInstanced(int offset, int count, const void *buffer, int instances); // Draw vertex array elements with instancing
 
 // Textures management
-RLAPI unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount); // Load texture data
+RLAPI rlTexture rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount); // Load texture data
 RLAPI unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer); // Load depth texture/renderbuffer (to be attached to fbo)
 RLAPI unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount); // Load texture cubemap data
 RLAPI void rlUpdateTexture(unsigned int id, int offsetX, int offsetY, int width, int height, int format, const void *data); // Update texture with new data on GPU
 RLAPI void rlGetGlTextureFormats(int format, unsigned int *glInternalFormat, unsigned int *glFormat, unsigned int *glType); // Get OpenGL internal formats
 RLAPI const char *rlGetPixelFormatName(unsigned int format);              // Get name string for pixel format
-RLAPI void rlUnloadTexture(unsigned int id);                              // Unload texture from GPU memory
+RLAPI void rlUnloadTexture(const rlTexture *texture);                              // Unload texture from GPU memory
 RLAPI void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps); // Generate mipmap data for selected texture
 RLAPI void *rlReadTexturePixels(unsigned int id, int width, int height, int format); // Read texture pixel data
 RLAPI unsigned char *rlReadScreenPixels(int width, int height);           // Read screen pixel data (color buffer)
@@ -877,7 +884,8 @@ typedef struct rlvkData {
         Matrix stack[RL_MAX_MATRIX_STACK_SIZE];// Matrix stack for push/pop
         int stackCounter;                   // Matrix stack counter
 
-        unsigned int defaultTextureId;      // Default texture used on shapes/poly drawing (required by shader)
+        VkDescriptorSet currentTextureDescriptorSet;      // Current texture descriptor set to be used on rlBegin
+        rlTexture defaultTexture;      // Default texture used on shapes/poly drawing (required by shader)
         unsigned int activeTextureId[RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS];    // Active texture ids to be enabled on batch drawing (0 active by default)
         VkShaderModule defaultVShaderModule;      // Default vertex shader module
         VkShaderModule defaultFShaderModule;      // Default fragment shader module
@@ -1510,8 +1518,8 @@ void rlBegin(int mode)                            // Initialize drawing mode (ho
 
         RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode = mode;
         // TODO: Implement this
-        // RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureId = RLVK.State.currentTextureId;
-        // RLVK.State.currentTextureId = RLVK.State.defaultTextureId;
+        RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureDescriptorSet = RLVK.State.currentTextureDescriptorSet;
+        RLVK.State.currentTextureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
     }
 }
 
@@ -2570,6 +2578,10 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         TRACELOG(LOG_WARNING, "Vulkan: Failed to create render pass");
         return;
     }
+
+    uint8_t pixels[4] = { 255, 255, 255, 255 };   // 1 pixel RGBA (4 bytes)
+    RLVK.State.defaultTexture = rlLoadTexture(pixels, 1, 1, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+    RLVK.State.currentTextureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
     
     const char defaultVShaderCode[] =
     "#version 450                       \n"
@@ -2751,6 +2763,8 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     }
     
     RL_FREE(RLVK.swapChainFramebuffers);
+
+    rlUnloadTexture(&RLVK.State.defaultTexture);
 
     rlUnloadShaderProgram(&RLVK.State.defaultShaderProgram);
     vkDestroyRenderPass(RLVK.device, RLVK.renderPass, 0);
@@ -3065,7 +3079,7 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
         batch.draws[i].vertexAlignment = 0;
         //batch.draws[i].vaoId = 0;
         //batch.draws[i].shaderId = 0;
-        // batch.draws[i].textureId = RLVK.State.defaultTextureId;
+        batch.draws[i].textureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
         //batch.draws[i].RLVK.State.projection = rlMatrixIdentity();
         //batch.draws[i].RLVK.State.modelview = rlMatrixIdentity();
     }
@@ -3217,7 +3231,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             for (int i = 0, vertexOffset = vb->vertexOffset; i < batch->drawCounter; i++)
             {
                 // Bind current draw call texture, activated as GL_TEXTURE0 and bound to sampler2D texture0 by default
-                // glBindTexture(GL_TEXTURE_2D, batch->draws[i].textureId);
+                // vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &batch->draws[i].textureDescriptorSet, 0, NULL);
 
                 // TODO: Use indexed draw
 
@@ -3267,7 +3281,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     {
         batch->draws[i].mode = RL_QUADS;
         batch->draws[i].vertexCount = 0;
-        batch->draws[i].textureId = RLVK.State.defaultTextureId;
+        batch->draws[i].textureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
     }
 
     // Reset active texture units for next batch
@@ -3307,13 +3321,13 @@ bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overf
 
         // Store current primitive drawing mode and texture id
         int currentMode = RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode;
-        int currentTexture = RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureId;
+        VkDescriptorSet currentTextureDescriptorSet = RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureDescriptorSet;
 
         rlDrawRenderBatch(RLVK.currentBatch);    // NOTE: Stereo rendering is checked inside
 
         // Restore state of last batch so we can continue adding vertices
         RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode = currentMode;
-        RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureId = currentTexture;
+        RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureDescriptorSet = currentTextureDescriptorSet;
     }
 
     return overflow;
@@ -3397,10 +3411,221 @@ void rlDrawVertexArrayElementsInstanced(int offset, int count, const void *buffe
     TRACELOG(RL_LOG_TRACE, "rlvk function rlDrawVertexArrayElementsInstanced was called.");
 }
 
-unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount)  // Load texture data 
+static uint32_t rlGetPixelSize(rlPixelFormat format)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTexture was called.");
-	return 0;
+    switch (format)
+    {
+        default: return 0;
+        case RL_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE:
+            return 1;
+        case RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA:
+        case RL_PIXELFORMAT_UNCOMPRESSED_R5G6B5:
+        case RL_PIXELFORMAT_UNCOMPRESSED_R5G5B5A1:
+        case RL_PIXELFORMAT_UNCOMPRESSED_R4G4B4A4:
+        case RL_PIXELFORMAT_UNCOMPRESSED_R16:
+            return 2;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8:
+            return 3;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
+        case RL_PIXELFORMAT_UNCOMPRESSED_R32:
+            return 4;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32:
+            return 4*3;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32:
+            return 4*4;
+    }
+}
+
+// TODO: Implement fully
+static VkFormat rlGetVulkanFormat(rlPixelFormat format)
+{
+    switch (format)
+    {
+        default: return VK_FORMAT_UNDEFINED;
+    }
+}
+
+rlTexture rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount)  // Load texture data 
+{
+    rlTexture texture = { 0 };
+
+    if (format >= RL_PIXELFORMAT_COMPRESSED_DXT1_RGB) {
+        TRACELOG(RL_LOG_WARNING, "RLVK: Unsupported texture format");
+        return (rlTexture){ 0 };
+    }
+
+    VkBuffer stagingBuffer;
+    VmaAllocation stagingAllocation;
+
+    VkDeviceSize imageSize = rlGetPixelSize(format)*width*height;
+
+    VkBufferCreateInfo stagingBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .size = imageSize
+    };
+    
+    if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &stagingBuffer, &stagingAllocation, NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+        return (rlTexture){ 0 };
+    }
+
+    VkImageCreateInfo imageCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .arrayLayers = 1,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .format = rlGetVulkanFormat(format),
+        .extent = { width, height, 1 },
+        .mipLevels = mipmapCount
+    };
+    
+    if (vmaCreateImage(RLVK.allocator, &imageCreateInfo, &deviceAllocationCreateInfo, &texture.image, &texture.allocation, NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create image");
+        return (rlTexture){ 0 };
+    }
+
+    void* mappedData;
+    if (vmaMapMemory(RLVK.allocator, stagingAllocation, &mappedData) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+        return (rlTexture){ 0 };
+    }
+    memcpy(mappedData, data, imageSize);
+    vmaUnmapMemory(RLVK.allocator, stagingAllocation);
+
+    VkCommandBufferBeginInfo beginInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
+        return (rlTexture){ 0 };
+    }
+
+    VkImageMemoryBarrier barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .subresourceRange.baseMipLevel = 0,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount = 1,
+        // ^ default
+
+        .image = texture.image,
+        .subresourceRange.levelCount = mipmapCount,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT
+    };
+
+    vkCmdPipelineBarrier(RLVK.transferCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+
+    VkBufferImageCopy copy = {
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .imageSubresource.mipLevel = 0,
+        .imageSubresource.baseArrayLayer = 0,
+        .imageSubresource.layerCount = 1,
+        .imageOffset = { 0, 0, 0 },
+        .imageExtent.depth = 1,
+        .imageExtent.width = width,
+        .imageExtent.height = height
+    };
+    
+    vkCmdCopyBufferToImage(RLVK.transferCommandBuffer, stagingBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+    int32_t mipWidth = (int32_t)width;
+    int32_t mipHeight = (int32_t)height;
+
+    barrier.subresourceRange.levelCount = 1;
+
+    VkImageBlit blit = {
+        .srcOffsets[0] = { 0, 0, 0 },
+        .srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .srcSubresource.mipLevel = 0,
+        .srcSubresource.baseArrayLayer = 0,
+        .srcSubresource.layerCount = 1,
+        .dstOffsets[0] = { 0, 0, 0 },
+        .dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .dstSubresource.baseArrayLayer = 0,
+        .dstSubresource.layerCount = 1
+    };
+
+    for (uint32_t i = 1; i < mipmapCount; i++) {
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.subresourceRange.baseMipLevel = i - 1;
+        
+        vkCmdPipelineBarrier(RLVK.transferCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+
+        blit.srcOffsets[1] = (VkOffset3D){ mipWidth, mipHeight, 1 };
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.dstOffsets[1] = (VkOffset3D){ mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+        blit.dstSubresource.mipLevel = i;
+
+        vkCmdBlitImage(RLVK.transferCommandBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+        
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier(RLVK.transferCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+
+        if (mipWidth > 1) { mipWidth /= 2; }
+        if (mipHeight > 1) { mipHeight /= 2; }
+    }
+
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.subresourceRange.baseMipLevel = mipmapCount - 1;
+
+    vkCmdPipelineBarrier(RLVK.transferCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+
+    if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
+        return (rlTexture){ 0 };
+    }
+
+    VkSubmitInfo submitInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &RLVK.transferCommandBuffer
+    };
+
+    if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.transferFence) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to submit transfer command buffer");
+        return (rlTexture){ 0 };
+    }
+
+    vkWaitForFences(RLVK.device, 1, &RLVK.transferFence, VK_TRUE, UINT64_MAX);
+    vkResetFences(RLVK.device, 1, &RLVK.transferFence);
+    vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
+    
+    vmaDestroyBuffer(RLVK.allocator, stagingBuffer, stagingAllocation);
+
+    return texture;
 }
 
 unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer)  // Load depth texture/renderbuffer (to be attached to fbo) 
@@ -3456,9 +3681,9 @@ const char *rlGetPixelFormatName(unsigned int format)               // Get name 
     }
 }
 
-void rlUnloadTexture(unsigned int id)                               // Unload texture from GPU memory 
+void rlUnloadTexture(const rlTexture *texture)                               // Unload texture from GPU memory 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadTexture was called.");
+    vmaDestroyImage(RLVK.allocator, texture->image, texture->allocation);
 }
 
 void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps)  // Generate mipmap data for selected texture 

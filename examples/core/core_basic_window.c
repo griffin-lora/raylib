@@ -1,19 +1,32 @@
 /*******************************************************************************************
 *
-*   raylib [shapes] example - basic shapes
+*   raylib [shaders] example - shapes textures
 *
-*   Example complexity rating: [★☆☆☆] 1/4
+*   Example complexity rating: [★★☆☆] 2/4
 *
-*   Example originally created with raylib 1.0, last time updated with raylib 4.2
+*   NOTE: This example requires raylib OpenGL 3.3 or ES2 versions for shaders support,
+*         OpenGL 1.1 does not support shaders, recompile raylib to OpenGL 3.3 version
+*
+*   NOTE: Shaders used in this example are #version 330 (OpenGL 3.3), to test this example
+*         on OpenGL ES 2.0 platforms (Android, Raspberry Pi, HTML5), use #version 100 shaders
+*         raylib comes with shaders ready for both versions, check raylib/shaders install folder
+*
+*   Example originally created with raylib 1.7, last time updated with raylib 3.7
 *
 *   Example licensed under an unmodified zlib/libpng license, which is an OSI-certified,
 *   BSD-like license that allows static linking with closed source software
 *
-*   Copyright (c) 2014-2025 Ramon Santamaria (@raysan5)
+*   Copyright (c) 2015-2025 Ramon Santamaria (@raysan5)
 *
 ********************************************************************************************/
 
 #include "raylib.h"
+
+#if defined(PLATFORM_DESKTOP)
+    #define GLSL_VERSION            330
+#else   // PLATFORM_ANDROID, PLATFORM_WEB
+    #define GLSL_VERSION            100
+#endif
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -25,9 +38,14 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - basic shapes");
+    InitWindow(screenWidth, screenHeight, "raylib [shaders] example - shapes textures");
 
-    float rotation = 0.0f;
+    Texture2D fudesumi = LoadTexture("resources/fudesumi.png");
+
+    // Load shader to be used on some parts drawing
+    // NOTE 1: Using GLSL 330 shader version, on OpenGL ES 2.0 use GLSL 100 shader version
+    // NOTE 2: Defining 0 (NULL) for vertex shader forces usage of internal default vertex shader
+    // Shader shader = LoadShader(0, TextFormat("examples/shapes/resources/shaders/glsl%i/grayscale.fs", GLSL_VERSION));
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -37,7 +55,7 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        rotation += 0.2f;
+        // TODO: Update your variables here
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -46,44 +64,38 @@ int main(void)
 
             ClearBackground(RAYWHITE);
 
-            DrawText("some basic shapes available on raylib", 20, 20, 20, DARKGRAY);
+            // Start drawing with default shader
 
-            // Circle shapes and lines
-            DrawCircle(screenWidth/5, 120, 35, DARKBLUE);
-            DrawCircleGradient((Vector2){ screenWidth/5.0f, 220.0f }, 60, GREEN, SKYBLUE);
-            DrawCircleLines(screenWidth/5, 340, 80, DARKBLUE);
-            DrawEllipse(screenWidth/5, 120, 25, 20, YELLOW);
-            DrawEllipseLines(screenWidth/5, 120, 30, 25, YELLOW);
+            // // Activate our custom shader to be applied on next shapes/textures drawings
+            // BeginShaderMode(shader);
 
-            // Rectangle shapes and lines
-            DrawRectangle(screenWidth/4*2 - 60, 100, 120, 60, RED);
-            DrawRectangleGradientH(screenWidth/4*2 - 90, 170, 180, 130, MAROON, GOLD);
-            DrawRectangleLines(screenWidth/4*2 - 40, 320, 80, 60, ORANGE);  // NOTE: Uses QUADS internally, not lines
+            //     DrawText("USING CUSTOM SHADER", 190, 40, 10, RED);
 
-            // Triangle shapes and lines
-            DrawTriangle((Vector2){ screenWidth/4.0f *3.0f, 80.0f },
-                         (Vector2){ screenWidth/4.0f *3.0f - 60.0f, 150.0f },
-                         (Vector2){ screenWidth/4.0f *3.0f + 60.0f, 150.0f }, VIOLET);
+            //     DrawRectangle(250 - 60, 90, 120, 60, RED);
+            //     DrawRectangleGradientH(250 - 90, 170, 180, 130, MAROON, GOLD);
+            //     DrawRectangleLines(250 - 40, 320, 80, 60, ORANGE);
 
-            DrawTriangleLines((Vector2){ screenWidth/4.0f*3.0f, 160.0f },
-                              (Vector2){ screenWidth/4.0f*3.0f - 20.0f, 230.0f },
-                              (Vector2){ screenWidth/4.0f*3.0f + 20.0f, 230.0f }, DARKBLUE);
+            // // Activate our default shader for next drawings
+            // EndShaderMode();
 
-            // Polygon shapes and lines
-            DrawPoly((Vector2){ screenWidth/4.0f*3, 330 }, 6, 80, rotation, BROWN);
-            DrawPolyLines((Vector2){ screenWidth/4.0f*3, 330 }, 6, 90, rotation, BROWN);
-            DrawPolyLinesEx((Vector2){ screenWidth/4.0f*3, 330 }, 6, 85, rotation, 6, BEIGE);
+            // Activate our custom shader to be applied on next shapes/textures drawings
+            // BeginShaderMode(shader);
 
-            // NOTE: We draw all LINES based shapes together to optimize internal drawing,
-            // this way, all LINES are rendered in a single draw pass
-            DrawLine(18, 42, screenWidth - 18, 42, BLACK);
+            DrawTexture(fudesumi, 500, -30, WHITE);    // Using custom shader
+
+            // // Activate our default shader for next drawings
+            // EndShaderMode();
+
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
+    // UnloadShader(shader);       // Unload shader
+    UnloadTexture(fudesumi);    // Unload texture
+
+    CloseWindow();              // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
