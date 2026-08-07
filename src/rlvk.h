@@ -1285,8 +1285,6 @@ void rlEndFrame(void)
 
 void rlMatrixMode(int mode)                       // Choose the current matrix to be transformed 
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlMatrixMode was called.");
-
     if (mode == RL_PROJECTION) RLVK.State.currentMatrix = &RLVK.State.projection;
     else if (mode == RL_MODELVIEW) RLVK.State.currentMatrix = &RLVK.State.modelview;
     //else if (mode == RL_TEXTURE) // Not supported
@@ -1296,8 +1294,6 @@ void rlMatrixMode(int mode)                       // Choose the current matrix t
 
 void rlPushMatrix(void)                           // Push the current matrix to stack 
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlPushMatrix was called.");
-
     if (RLVK.State.stackCounter >= RL_MAX_MATRIX_STACK_SIZE) TRACELOG(RL_LOG_ERROR, "RLVK: Matrix stack overflow (RL_MAX_MATRIX_STACK_SIZE)");
 
     if (RLVK.State.currentMatrixMode == RL_MODELVIEW)
@@ -1312,8 +1308,6 @@ void rlPushMatrix(void)                           // Push the current matrix to 
 
 RLAPI void rlPopMatrix(void)                            // Pop latest inserted matrix from stack 
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlPopMatrix was called.");
-
     if (RLVK.State.stackCounter > 0)
     {
         Matrix mat = RLVK.State.stack[RLVK.State.stackCounter - 1];
@@ -1331,13 +1325,10 @@ RLAPI void rlPopMatrix(void)                            // Pop latest inserted m
 void rlLoadIdentity(void)                         // Reset current matrix to identity matrix 
 {
     *RLVK.State.currentMatrix = rlMatrixIdentity();
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlLoadIdentity was called.");
 }
 
 void rlTranslatef(float x, float y, float z)      // Multiply the current matrix by a translation matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlTranslatef was called.");
-
     Matrix matTranslation = {
         1.0f, 0.0f, 0.0f, x,
         0.0f, 1.0f, 0.0f, y,
@@ -1351,8 +1342,6 @@ void rlTranslatef(float x, float y, float z)      // Multiply the current matrix
 
 void rlRotatef(float angle, float x, float y, float z)  // Multiply the current matrix by a rotation matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlRotatef was called.");
-
     Matrix matRotation = rlMatrixIdentity();
 
     // Axis vector (x, y, z) normalization
@@ -1401,8 +1390,6 @@ void rlScalef(float x, float y, float z)          // Multiply the current matrix
 
 void rlMultMatrixf(const float *matf)             // Multiply the current matrix by another matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlMultMatrixf was called.");
-
         // Matrix creation from array
     Matrix mat = { matf[0], matf[4], matf[8], matf[12],
                    matf[1], matf[5], matf[9], matf[13],
@@ -1414,8 +1401,6 @@ void rlMultMatrixf(const float *matf)             // Multiply the current matrix
 
 void rlFrustum(double left, double right, double bottom, double top, double znear, double zfar)  
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlFrustum was called.");
-
     Matrix matFrustum = { 0 };
 
     float rl = (float)(right - left);
@@ -1447,8 +1432,6 @@ void rlFrustum(double left, double right, double bottom, double top, double znea
 
 void rlOrtho(double left, double right, double bottom, double top, double znear, double zfar)  
 {
-    TRACELOG(RL_LOG_TRACE, "IMPLEMENTED: rlvk function rlOrtho was called.");
-
     // NOTE: If left-right and top-botton values are equal it could create a division by zero,
     // response to it is platform/compiler dependant
     Matrix matOrtho = { 0 };
@@ -1501,7 +1484,6 @@ double rlGetCullDistanceFar(void)                 // Get cull plane distance far
 
 void rlBegin(int mode)                            // Initialize drawing mode (how to organize vertex) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlBegin was called.");
     // Draw mode can be RL_LINES, RL_TRIANGLES and RL_QUADS
     // NOTE: In all three cases, vertex are accumulated over default internal vertex buffer
     if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode != mode)
@@ -1941,19 +1923,13 @@ bool rlIsStereoRenderEnabled(void)                // Check if stereo render is e
 
 void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a)  // Clear color buffer with color 
 {
-    rlBegin(RL_TRIANGLES);
+    rlBegin(RL_QUADS);
 
     rlColor4ub(r, g, b, a);
     rlVertex2f(RLVK.viewport.width, 0.0f);
     
     rlColor4ub(r, g, b, a);
     rlVertex2f(0.0f, 0.0f);
-    
-    rlColor4ub(r, g, b, a);
-    rlVertex2f(0.0f, RLVK.viewport.height);
-
-    rlColor4ub(r, g, b, a);
-    rlVertex2f(RLVK.viewport.width, 0.0f);
     
     rlColor4ub(r, g, b, a);
     rlVertex2f(0.0f, RLVK.viewport.height);
@@ -2873,8 +2849,6 @@ int *rlGetShaderLocsDefault(void)                 // Get default shader location
 
 rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a render batch system 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadRenderBatch was called.");
-
 	rlRenderBatch batch = { 0 };
 
     // Setup quad index buffer
@@ -3324,8 +3298,6 @@ void rlDrawRenderBatchActive(void)                // Update and draw internal re
 
 bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overflow for a given number of vertex 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlCheckRenderBatchLimit was called.");
-
 	bool overflow = false;
 
     if ((RLVK.State.vertexCounter + vCount) >=
