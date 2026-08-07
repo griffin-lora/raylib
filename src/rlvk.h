@@ -75,6 +75,7 @@
 #ifndef RLVK_H
 #define RLVK_H
 
+#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -295,7 +296,7 @@ typedef struct Matrix {
 
 #include "rlvk_handles.h"
 
-typedef struct {
+typedef struct rlTexture {
     rlvkSampler sampler;
     rlvkImage image;
     rlvkImageView view;
@@ -672,7 +673,7 @@ RLAPI void rlSetRenderBatchActive(rlRenderBatch *batch); // Set the active rende
 RLAPI void rlDrawRenderBatchActive(void);               // Update and draw internal render batch
 RLAPI bool rlCheckRenderBatchLimit(int vCount);         // Check internal buffer overflow for a given number of vertex
 
-RLAPI void rlSetTexture(unsigned int id);               // Set current texture for render batch and check buffers limits
+RLAPI void rlSetTexture(const rlTexture *texture);               // Set current texture for render batch and check buffers limits
 
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -725,7 +726,7 @@ RLAPI int rlGetLocationAttrib(const rlShaderProgram *program, const char *attrib
 RLAPI void rlSetUniform(int locIndex, const void *value, int uniformType, int count); // Set shader value uniform
 RLAPI void rlSetUniformMatrix(int locIndex, Matrix mat);                        // Set shader value matrix
 RLAPI void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count);    // Set shader value matrices
-RLAPI void rlSetUniformSampler(int locIndex, unsigned int textureId);           // Set shader value sampler
+RLAPI void rlSetUniformSampler(int locIndex, const rlTexture *texture);           // Set shader value sampler
 RLAPI void rlSetShader(const rlShaderProgram *program);                             // Set shader currently active (id and locations)
 
 // Compute shader management
@@ -2578,10 +2579,6 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         TRACELOG(LOG_WARNING, "Vulkan: Failed to create render pass");
         return;
     }
-
-    uint8_t pixels[4] = { 255, 255, 255, 255 };   // 1 pixel RGBA (4 bytes)
-    RLVK.State.defaultTexture = rlLoadTexture(pixels, 1, 1, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
-    RLVK.State.currentTextureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
     
     const char defaultVShaderCode[] =
     "#version 450                       \n"
@@ -2730,6 +2727,10 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         TRACELOG(LOG_WARNING, "Vulkan: Failed to create semaphores");
         return;
     }
+
+    uint8_t pixels[4] = { 255, 255, 255, 255 };   // 1 pixel RGBA (4 bytes)
+    RLVK.State.defaultTexture = rlLoadTexture(pixels, 1, 1, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+    RLVK.State.currentTextureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
 
     RLVK.defaultBatch = rlLoadRenderBatch(RL_DEFAULT_BATCH_BUFFERS, RL_DEFAULT_BATCH_BUFFER_ELEMENTS);
     RLVK.currentBatch = &RLVK.defaultBatch;
@@ -3333,7 +3334,7 @@ bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overf
     return overflow;
 }
 
-void rlSetTexture(unsigned int id)                // Set current texture for render batch and check buffers limits 
+void rlSetTexture(const rlTexture *texture)                // Set current texture for render batch and check buffers limits 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetTexture was called.");
 }
@@ -3442,6 +3443,7 @@ static VkFormat rlGetVulkanFormat(rlPixelFormat format)
     switch (format)
     {
         default: return VK_FORMAT_UNDEFINED;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return VK_FORMAT_B8G8R8A8_SRGB;
     }
 }
 
@@ -3471,7 +3473,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
         return (rlTexture){ 0 };
     }
-
+    
     VkImageCreateInfo imageCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
@@ -3492,6 +3494,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         return (rlTexture){ 0 };
     }
 
+    // copy image data over
     void* mappedData;
     if (vmaMapMemory(RLVK.allocator, stagingAllocation, &mappedData) != VK_SUCCESS)
     {
@@ -3624,6 +3627,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
     
     vmaDestroyBuffer(RLVK.allocator, stagingBuffer, stagingAllocation);
+    //
 
     return texture;
 }
@@ -4251,7 +4255,7 @@ void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count)     // Set
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformMatrices was called.");
 }
 
-void rlSetUniformSampler(int locIndex, unsigned int textureId)            // Set shader value sampler 
+void rlSetUniformSampler(int locIndex, const rlTexture *texture)            // Set shader value sampler 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformSampler was called.");
 }

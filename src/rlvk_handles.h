@@ -27,5 +27,6 @@ RLVK_DEFINE_NON_DISPATCHABLE_HANDLE(CommandPool)
 typedef struct VmaAllocation_T *rlvkAllocation;
 
 typedef struct rlShaderProgram rlShaderProgram;
+typedef struct rlTexture rlTexture;
 
 #endif // RLVK_HANDLES_H

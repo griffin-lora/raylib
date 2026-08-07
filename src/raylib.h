@@ -276,7 +276,11 @@ typedef struct Image {
 
 // Texture, tex data stored in GPU memory (VRAM)
 typedef struct Texture {
+#ifndef USING_RLVK
     unsigned int id;        // OpenGL texture id
+#else
+    rlTexture *id;        // rlvk texture handle
+#endif
     int width;              // Texture base width
     int height;             // Texture base height
     int mipmaps;            // Mipmap levels, 1 by default
