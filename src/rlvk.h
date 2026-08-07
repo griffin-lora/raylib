@@ -141,6 +141,9 @@
 #ifndef RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS
     #define RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS       4      // Maximum number of textures units that can be activated on batch drawing (SetShaderValueTexture())
 #endif
+#ifndef RL_DEFAULT_MAX_TEXTURES
+    #define RL_DEFAULT_MAX_TEXTURES  32 // Maximum number of loaded textures at once
+#endif
 
 // Internal Matrix stack
 #ifndef RL_MAX_MATRIX_STACK_SIZE
@@ -872,6 +875,8 @@ typedef struct rlvkData {
     VkFence inFlightFence;
     VkFence transferFence;
     VkPhysicalDeviceProperties physicalDeviceProperties;
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSetLayout textureDescriptorSetLayout;
 
     //-----------
 
@@ -2643,6 +2648,47 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .extent = RLVK.swapChainExtent
     };
 
+    VkDescriptorPoolSize poolSizes[] = {
+        {
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1
+        },
+    };
+
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .poolSizeCount = 1,
+        .pPoolSizes = poolSizes,
+        .maxSets = RL_DEFAULT_MAX_TEXTURES
+    };
+
+    if (vkCreateDescriptorPool(RLVK.device, &descriptorPoolCreateInfo, NULL, &RLVK.descriptorPool) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor pool");
+        return;
+    }
+
+    VkDescriptorSetLayoutBinding textureDescriptorSetBindings[] = {
+        {
+            .descriptorCount = 1,
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+        }
+    };
+
+    VkDescriptorSetLayoutCreateInfo textureDescriptorSetLayoutCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings = textureDescriptorSetBindings
+    };
+
+    if (vkCreateDescriptorSetLayout(RLVK.device, &textureDescriptorSetLayoutCreateInfo, 0, &RLVK.textureDescriptorSetLayout) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor set layout");
+        return;
+    }
+
     RLVK.State.defaultShaderProgram = rlLoadShaderProgramEx(RLVK.State.defaultVShaderModule, RLVK.State.defaultFShaderModule);
 
     RLVK.State.currentGraphicsPipeline = RLVK.State.defaultShaderProgram.pipeline;
@@ -2758,6 +2804,9 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
 void rlvkClose(void)                              // De-initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
+    vkDestroyDescriptorSetLayout(RLVK.device, RLVK.textureDescriptorSetLayout, NULL);
+    vkDestroyDescriptorPool(RLVK.device, RLVK.descriptorPool, NULL);
+
     vkDestroySemaphore(RLVK.device, RLVK.imageAvailableSemaphore, 0);
     vkDestroySemaphore(RLVK.device, RLVK.renderFinishedSemaphore, 0);
     vkDestroyFence(RLVK.device, RLVK.inFlightFence, 0);
@@ -3692,6 +3741,41 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         return texture;
     }
 
+    // allocate descriptor set
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = RLVK.descriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &RLVK.textureDescriptorSetLayout
+    };
+
+    if (vkAllocateDescriptorSets(RLVK.device, &descriptorSetAllocateInfo, &texture.descriptorSet) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create descriptor set");
+        return texture;
+    }
+
+    VkDescriptorImageInfo imageDescriptorInfo =
+    {
+        .sampler = texture.sampler,
+        .imageView = texture.view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    };
+
+    VkWriteDescriptorSet write =
+    {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = texture.descriptorSet,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+        .pImageInfo = &imageDescriptorInfo
+    };
+
+    vkUpdateDescriptorSets(RLVK.device, 1, &write, 0, NULL);
+
     return texture;
 }
 
@@ -3950,11 +4034,13 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
         return program;
     }
 
+    VkDescriptorSetLayout layouts[2] = { program.descriptorSetLayout, RLVK.textureDescriptorSetLayout };
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts = &program.descriptorSetLayout
+        .setLayoutCount = 2,
+        .pSetLayouts = layouts
     };
 
     if (vkCreatePipelineLayout(RLVK.device, &pipelineLayoutInfo, 0, &program.pipelineLayout) != VK_SUCCESS)
@@ -4071,8 +4157,8 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
         .range = 4*4*sizeof(float)
     };
     uniformWrites[4].dstBinding = RL_SHADER_LOC_MATRIX_NORMAL;
-
-    vkUpdateDescriptorSets(RLVK.device, 1, uniformWrites, 0, NULL);
+    
+    vkUpdateDescriptorSets(RLVK.device, 5, uniformWrites, 0, NULL);
 
     // Create graphics pipeline
 
