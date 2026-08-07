@@ -84,6 +84,12 @@
 #ifndef RAYLIB_H
 #define RAYLIB_H
 
+#ifdef PLATFORM_DESKTOP_VULKAN
+    #define USING_RLVK
+#else
+    #define USING_RLGL
+#endif
+
 #include <stdarg.h>     // Required for: va_list - Only used by TraceLogCallback
 
 #define RAYLIB_VERSION_MAJOR 6
@@ -157,8 +163,7 @@
     #error "C++11 or later is required. Add -std=c++11"
 #endif
 
-#ifdef PLATFORM_DESKTOP_VULKAN
-    #define USING_RLVK
+#ifdef USING_RLVK
     #include "rlvk_handles.h"
 #endif
 

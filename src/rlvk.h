@@ -72,10 +72,17 @@
 *
 **********************************************************************************************/
 
+#ifndef USING_RLVK
+    #error "raylib.h must be included before rlvk.h"
+#endif
+
+#ifdef USING_RLGL
+    #error "Cannot include rlvk.h when using RLGL"
+#endif
+
 #ifndef RLVK_H
 #define RLVK_H
 
-#include <vulkan/vulkan_core.h>
 #define RLVK_VERSION  "0.1"
 
 // Function specifiers in case library is build/used as a shared library
@@ -591,12 +598,12 @@ RLAPI void rlDisableStatePointer(int vertexAttribType); // Disable attribute sta
 
 // Textures state
 RLAPI void rlActiveTextureSlot(int slot);               // Select and active a texture slot
-RLAPI void rlEnableTexture(unsigned int id);            // Enable texture
+RLAPI void rlEnableTexture(const rlTexture* texture);            // Enable texture
 RLAPI void rlDisableTexture(void);                      // Disable texture
-RLAPI void rlEnableTextureCubemap(unsigned int id);     // Enable texture cubemap
+RLAPI void rlEnableTextureCubemap(const rlTexture* texture);     // Enable texture cubemap
 RLAPI void rlDisableTextureCubemap(void);               // Disable texture cubemap
-RLAPI void rlTextureParameters(unsigned int id, int param, int value); // Set texture parameters (filter, wrap)
-RLAPI void rlCubemapParameters(unsigned int id, int param, int value); // Set cubemap parameters (filter, wrap)
+RLAPI void rlTextureParameters(const rlTexture* texture, int param, int value); // Set texture parameters (filter, wrap)
+RLAPI void rlCubemapParameters(const rlTexture* texture, int param, int value); // Set cubemap parameters (filter, wrap)
 
 // Shader state
 RLAPI void rlEnableShader(const rlShaderProgram *program);             // Enable shader program
@@ -695,19 +702,19 @@ RLAPI void rlDrawVertexArrayElementsInstanced(int offset, int count, const void 
 
 // Textures management
 RLAPI rlTexture rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount); // Load texture data
-RLAPI unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer); // Load depth texture/renderbuffer (to be attached to fbo)
-RLAPI unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount); // Load texture cubemap data
-RLAPI void rlUpdateTexture(unsigned int id, int offsetX, int offsetY, int width, int height, int format, const void *data); // Update texture with new data on GPU
+RLAPI rlTexture rlLoadTextureDepth(int width, int height, bool useRenderBuffer); // Load depth texture/renderbuffer (to be attached to fbo)
+RLAPI rlTexture rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount); // Load texture cubemap data
+RLAPI void rlUpdateTexture(const rlTexture *texture, int offsetX, int offsetY, int width, int height, int format, const void *data); // Update texture with new data on GPU
 RLAPI void rlGetGlTextureFormats(int format, unsigned int *glInternalFormat, unsigned int *glFormat, unsigned int *glType); // Get OpenGL internal formats
 RLAPI const char *rlGetPixelFormatName(unsigned int format);              // Get name string for pixel format
 RLAPI void rlUnloadTexture(const rlTexture *texture);                              // Unload texture from GPU memory
-RLAPI void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps); // Generate mipmap data for selected texture
-RLAPI void *rlReadTexturePixels(unsigned int id, int width, int height, int format); // Read texture pixel data
+RLAPI void rlGenTextureMipmaps(const rlTexture *texture, int width, int height, int format, int *mipmaps); // Generate mipmap data for selected texture
+RLAPI void *rlReadTexturePixels(const rlTexture *texture, int width, int height, int format); // Read texture pixel data
 RLAPI unsigned char *rlReadScreenPixels(int width, int height);           // Read screen pixel data (color buffer)
 
 // Framebuffer management (fbo)
 RLAPI unsigned int rlLoadFramebuffer(void);                               // Load an empty framebuffer
-RLAPI void rlFramebufferAttach(unsigned int id, unsigned int texId, int attachType, int texType, int mipLevel); // Attach texture/renderbuffer to a framebuffer
+RLAPI void rlFramebufferAttach(unsigned int id, const rlTexture *texture, int attachType, int texType, int mipLevel); // Attach texture/renderbuffer to a framebuffer
 RLAPI bool rlFramebufferComplete(unsigned int id);                        // Verify framebuffer is complete
 RLAPI void rlUnloadFramebuffer(unsigned int id);                          // Delete framebuffer from GPU
 // WARNING: Copy and resize framebuffer functionality only defined for software backend
@@ -742,7 +749,7 @@ RLAPI void rlCopyShaderBuffer(unsigned int destId, unsigned int srcId, unsigned 
 RLAPI unsigned int rlGetShaderBufferSize(unsigned int id);                      // Get SSBO buffer size
 
 // Buffer management
-RLAPI void rlBindImageTexture(unsigned int id, unsigned int index, int format, bool readonly);  // Bind image texture
+RLAPI void rlBindImageTexture(const rlTexture *texture, unsigned int index, int format, bool readonly);  // Bind image texture
 
 // Matrix state management
 RLAPI Matrix rlGetMatrixModelview(void);                                  // Get internal modelview matrix
@@ -1727,7 +1734,7 @@ void rlActiveTextureSlot(int slot)                // Select and active a texture
     TRACELOG(RL_LOG_TRACE, "rlvk function rlActiveTextureSlot was called.");
 }
 
-void rlEnableTexture(unsigned int id)             // Enable texture 
+void rlEnableTexture(const rlTexture* texture)             // Enable texture 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableTexture was called.");
 }
@@ -1737,7 +1744,7 @@ void rlDisableTexture(void)                       // Disable texture
     TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableTexture was called.");
 }
 
-void rlEnableTextureCubemap(unsigned int id)      // Enable texture cubemap 
+void rlEnableTextureCubemap(const rlTexture* texture)      // Enable texture cubemap 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableTextureCubemap was called.");
 }
@@ -1747,12 +1754,12 @@ void rlDisableTextureCubemap(void)                // Disable texture cubemap
     TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableTextureCubemap was called.");
 }
 
-void rlTextureParameters(unsigned int id, int param, int value)  // Set texture parameters (filter, wrap) 
+void rlTextureParameters(const rlTexture* texture, int param, int value)  // Set texture parameters (filter, wrap) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlTextureParameters was called.");
 }
 
-void rlCubemapParameters(unsigned int id, int param, int value)  // Set cubemap parameters (filter, wrap) 
+void rlCubemapParameters(const rlTexture* texture, int param, int value)  // Set cubemap parameters (filter, wrap) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlCubemapParameters was called.");
 }
@@ -3632,19 +3639,19 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     return texture;
 }
 
-unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer)  // Load depth texture/renderbuffer (to be attached to fbo) 
+rlTexture rlLoadTextureDepth(int width, int height, bool useRenderBuffer)  // Load depth texture/renderbuffer (to be attached to fbo) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureDepth was called.");
-	return 0;
+	return (rlTexture){ 0 };
 }
 
-unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount)  // Load texture cubemap data 
+rlTexture rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount)  // Load texture cubemap data 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureCubemap was called.");
-	return 0;
+	return (rlTexture){ 0 };
 }
 
-void rlUpdateTexture(unsigned int id, int offsetX, int offsetY, int width, int height, int format, const void *data)  // Update texture with new data on GPU 
+void rlUpdateTexture(const rlTexture* texture, int offsetX, int offsetY, int width, int height, int format, const void *data)  // Update texture with new data on GPU 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateTexture was called.");
 }
@@ -3690,12 +3697,12 @@ void rlUnloadTexture(const rlTexture *texture)                               // 
     vmaDestroyImage(RLVK.allocator, texture->image, texture->allocation);
 }
 
-void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps)  // Generate mipmap data for selected texture 
+void rlGenTextureMipmaps(const rlTexture* texture, int width, int height, int format, int *mipmaps)  // Generate mipmap data for selected texture 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGenTextureMipmaps was called.");
 }
 
-void *rlReadTexturePixels(unsigned int id, int width, int height, int format)  // Read texture pixel data 
+void *rlReadTexturePixels(const rlTexture* texture, int width, int height, int format)  // Read texture pixel data 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlReadTexturePixels was called.");
 	return NULL;
@@ -3713,7 +3720,7 @@ unsigned int rlLoadFramebuffer(void)                                // Load an e
 	return 0;
 }
 
-void rlFramebufferAttach(unsigned int id, unsigned int texId, int attachType, int texType, int mipLevel)  // Attach texture/renderbuffer to a framebuffer 
+void rlFramebufferAttach(unsigned int id, const rlTexture *texture, int attachType, int texType, int mipLevel)  // Attach texture/renderbuffer to a framebuffer 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlFramebufferAttach was called.");
 }
@@ -4315,7 +4322,7 @@ unsigned int rlGetShaderBufferSize(unsigned int id)                       // Get
 	return 0;
 }
 
-void rlBindImageTexture(unsigned int id, unsigned int index, int format, bool readonly)   // Bind image texture 
+void rlBindImageTexture(const rlTexture* texture, unsigned int index, int format, bool readonly)   // Bind image texture 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlBindImageTexture was called.");
 }

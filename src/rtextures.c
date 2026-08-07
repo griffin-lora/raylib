@@ -64,7 +64,11 @@
 
 #if SUPPORT_MODULE_RTEXTURES
 
-#include "rlgl.h"               // OpenGL abstraction layer to multiple versions
+#ifdef USING_RLGL
+    #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
+#else
+    #include "rlvk.h"
+#endif
 
 #include <stdlib.h>             // Required for: malloc(), calloc(), free()
 #include <string.h>             // Required for: strlen() [Used in ImageTextEx()], strcmp() [Used in LoadImageFromMemory()/LoadImageAnimFromMemory()/ExportImageToMemory()]
@@ -4271,7 +4275,12 @@ Texture2D LoadTextureFromImage(Image image)
 
     if ((image.width != 0) && (image.height != 0))
     {
+    #ifdef USING_RLGL
         texture.id = rlLoadTexture(image.data, image.width, image.height, image.format, image.mipmaps);
+    #else
+        texture.id = RL_MALLOC(sizeof(rlTexture));
+        *texture.id = rlLoadTexture(image.data, image.width, image.height, image.format, image.mipmaps);
+    #endif
     }
     else TRACELOG(LOG_WARNING, "IMAGE: Data is not valid to load texture");
 
@@ -4372,7 +4381,12 @@ TextureCubemap LoadTextureCubemap(Image image, int layout)
 
         // NOTE: Cubemap data is expected to be provided as 6 images in a single data array,
         // one after the other (that's a vertical image), following convention: +X, -X, +Y, -Y, +Z, -Z
-        cubemap.id = rlLoadTextureCubemap(faces.data, size, faces.format, faces.mipmaps);
+        #ifdef USING_RLGL
+            cubemap.id = rlLoadTextureCubemap(faces.data, size, faces.format, faces.mipmaps);
+        #else
+            cubemap.id = RL_MALLOC(sizeof(rlTexture));
+            *cubemap.id = rlLoadTextureCubemap(faces.data, size, faces.format, faces.mipmaps);
+        #endif
 
         if (cubemap.id != 0)
         {
@@ -4401,14 +4415,24 @@ RenderTexture2D LoadRenderTexture(int width, int height)
         rlEnableFramebuffer(target.id);
 
         // Create color texture (default to RGBA)
+    #ifdef USING_RLGL
         target.texture.id = rlLoadTexture(NULL, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+    #else
+        target.texture.id = RL_MALLOC(sizeof(rlTexture));
+        *target.texture.id = rlLoadTexture(NULL, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+    #endif
         target.texture.width = width;
         target.texture.height = height;
         target.texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
         target.texture.mipmaps = 1;
 
         // Create depth renderbuffer/texture
+    #ifdef USING_RLGL
         target.depth.id = rlLoadTextureDepth(width, height, true);
+    #else
+        target.depth.id = RL_MALLOC(sizeof(rlTexture));
+        *target.depth.id = rlLoadTextureDepth(width, height, true);
+    #endif
         target.depth.width = width;
         target.depth.height = height;
         target.depth.format = 19;       //DEPTH_COMPONENT_24BIT?
@@ -4448,6 +4472,7 @@ void UnloadTexture(Texture2D texture)
     if (texture.id > 0)
     {
         rlUnloadTexture(texture.id);
+        RL_FREE(texture.id);
 
         TRACELOG(LOG_INFO, "TEXTURE: [ID %i] Unloaded texture data from VRAM (GPU)", texture.id);
     }
@@ -4474,6 +4499,7 @@ void UnloadRenderTexture(RenderTexture2D target)
         {
             // Color texture attached to FBO is deleted
             rlUnloadTexture(target.texture.id);
+            RL_FREE(target.texture.id);
         }
 
         // NOTE: Depth texture/renderbuffer is automatically

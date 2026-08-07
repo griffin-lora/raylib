@@ -50,7 +50,11 @@
 
 #if SUPPORT_MODULE_RSHAPES
 
-#include "rlgl.h"       // OpenGL abstraction layer to OpenGL 1.1, 2.1, 3.3+ or ES2
+#ifdef USING_RLGL
+    #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
+#else
+    #include "rlvk.h"
+#endif
 
 #include <math.h>       // Required for: sinf(), asinf(), cosf(), acosf(), sqrtf(), fabsf()
 #include <float.h>      // Required for: FLT_EPSILON
@@ -76,7 +80,11 @@
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-static Texture2D texShapes = { 1, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
+#ifdef USING_RLGL
+    static Texture2D texShapes = { 1, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
+#else
+    static Texture2D texShapes = { NULL, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
+#endif
 static Rectangle texShapesRec = { 0.0f, 0.0f, 1.0f, 1.0f };    // Texture source rectangle used on shapes drawing
 
 //----------------------------------------------------------------------------------
@@ -97,7 +105,11 @@ void SetShapesTexture(Texture2D texture, Rectangle rec)
     // it can break the rendering of all shapes if misused
     if ((texture.id == 0) || (rec.width == 0) || (rec.height == 0))
     {
-        texShapes = (Texture2D){ 1, 1, 1, 1, 7 };
+        #ifdef USING_RLGL
+            texShapes = (Texture2D){ 1, 1, 1, 1, 7 };
+        #else
+            texShapes = (Texture2D){ NULL, 1, 1, 1, 7 };
+        #endif
         texShapesRec = (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f };
     }
     else

@@ -124,7 +124,7 @@
     #define SW_GL_FRAMEBUFFER_COPY_BGRA false
 #endif
 
-#ifndef PLATFORM_DESKTOP_VULKAN
+#ifdef USING_RLGL
     #define RLGL_IMPLEMENTATION
     #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 #else
