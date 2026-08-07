@@ -3543,8 +3543,8 @@ static VkFormat rlGetVulkanFormat(rlPixelFormat format)
     switch (format)
     {
         default: return VK_FORMAT_UNDEFINED;
-        case RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: return VK_FORMAT_R8G8_SRGB;
-        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return VK_FORMAT_R8G8B8A8_SRGB;
+        case RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: return VK_FORMAT_R8G8_UNORM;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return VK_FORMAT_R8G8B8A8_UNORM;
     }
 }
 
@@ -3552,7 +3552,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
 {
     rlTexture texture = { 0 };
 
-    if (format == RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA || format >= RL_PIXELFORMAT_COMPRESSED_DXT1_RGB) {
+    if (format >= RL_PIXELFORMAT_COMPRESSED_DXT1_RGB) {
         TRACELOG(RL_LOG_WARNING, "RLVK: Unsupported texture format");
         return texture;
     }
@@ -3742,7 +3742,8 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        // We need to swizzle alpha channel to green channel when using RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
+        .components.a = (format == RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA ? VK_COMPONENT_SWIZZLE_G : VK_COMPONENT_SWIZZLE_IDENTITY),
         .subresourceRange.baseMipLevel = 0,
         .subresourceRange.levelCount = mipmapCount,
         .subresourceRange.baseArrayLayer = 0,
