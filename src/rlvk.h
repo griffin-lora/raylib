@@ -3738,9 +3738,11 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        // We need to swizzle alpha channel to green channel when using RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
         .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = (format == RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA ? VK_COMPONENT_SWIZZLE_ONE : VK_COMPONENT_SWIZZLE_IDENTITY),
+        .components.b = (format == RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA ? VK_COMPONENT_SWIZZLE_ONE : VK_COMPONENT_SWIZZLE_IDENTITY),
+        .components.a = (format == RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA ? VK_COMPONENT_SWIZZLE_G : VK_COMPONENT_SWIZZLE_IDENTITY),
         // We need to swizzle alpha channel to green channel when using RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
         .components.a = (format == RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA ? VK_COMPONENT_SWIZZLE_G : VK_COMPONENT_SWIZZLE_IDENTITY),
         .subresourceRange.baseMipLevel = 0,
