@@ -871,6 +871,7 @@ typedef struct rlvkData {
     VkSemaphore renderFinishedSemaphore;
     VkFence inFlightFence;
     VkFence transferFence;
+    VkPhysicalDeviceProperties physicalDeviceProperties;
 
     //-----------
 
@@ -2123,6 +2124,8 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
             VkPhysicalDeviceProperties deviceProperties;
             vkGetPhysicalDeviceProperties(*device, &deviceProperties);
+
+            RLVK.physicalDeviceProperties = deviceProperties;
 
             VkPhysicalDeviceFeatures deviceFeatures;
             vkGetPhysicalDeviceFeatures(*device, &deviceFeatures);
@@ -3465,8 +3468,10 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     VmaAllocation stagingAllocation;
 
     VkDeviceSize imageSize = rlGetPixelSize(format)*width*height;
+    VkFormat vulkanFormat = rlGetVulkanFormat(format);
 
-    VkBufferCreateInfo stagingBufferCreateInfo = {
+    VkBufferCreateInfo stagingBufferCreateInfo =
+    {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -3479,7 +3484,8 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         return texture;
     }
     
-    VkImageCreateInfo imageCreateInfo = {
+    VkImageCreateInfo imageCreateInfo =
+    {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .arrayLayers = 1,
@@ -3488,7 +3494,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        .format = rlGetVulkanFormat(format),
+        .format = vulkanFormat,
         .extent = { width, height, 1 },
         .mipLevels = mipmapCount
     };
@@ -3521,7 +3527,8 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         return texture;
     }
 
-    VkImageMemoryBarrier barrier = {
+    VkImageMemoryBarrier barrier =
+    {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -3530,7 +3537,6 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
         .subresourceRange.baseMipLevel = 0,
         .subresourceRange.baseArrayLayer = 0,
         .subresourceRange.layerCount = 1,
-        // ^ default
 
         .image = texture.image,
         .subresourceRange.levelCount = mipmapCount,
@@ -3540,7 +3546,8 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
 
     vkCmdPipelineBarrier(RLVK.transferCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
 
-    VkBufferImageCopy copy = {
+    VkBufferImageCopy copy =
+    {
         .bufferOffset = 0,
         .bufferRowLength = 0,
         .bufferImageHeight = 0,
@@ -3561,7 +3568,8 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
 
     barrier.subresourceRange.levelCount = 1;
 
-    VkImageBlit blit = {
+    VkImageBlit blit =
+    {
         .srcOffsets[0] = { 0, 0, 0 },
         .srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .srcSubresource.mipLevel = 0,
@@ -3632,7 +3640,57 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
     
     vmaDestroyBuffer(RLVK.allocator, stagingBuffer, stagingAllocation);
-    //
+    
+    // create image view
+    VkImageViewCreateInfo viewInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .subresourceRange.baseMipLevel = 0,
+        .subresourceRange.levelCount = mipmapCount,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount = 1,
+        .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .image = texture.image,
+        .format = vulkanFormat
+    };
+
+    if (vkCreateImageView(RLVK.device, &viewInfo, NULL, &texture.view) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create image view");
+        return texture;
+    }
+
+    // create sampler
+    VkSamplerCreateInfo samplerInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+        .unnormalizedCoordinates = VK_FALSE,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .minLod = 0.0f,
+        .maxLod = (float)mipmapCount,
+        .mipLodBias = 0.0f,
+        .maxAnisotropy = RLVK.physicalDeviceProperties.limits.maxSamplerAnisotropy,
+        .minFilter = VK_FILTER_NEAREST,
+        .magFilter = VK_FILTER_NEAREST,
+        .anisotropyEnable = VK_FALSE
+    };
+
+    if (vkCreateSampler(RLVK.device, &samplerInfo, NULL, &texture.sampler) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create sampler");
+        return texture;
+    }
 
     return texture;
 }
