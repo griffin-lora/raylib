@@ -72,6 +72,7 @@
 *
 **********************************************************************************************/
 
+#include <vulkan/vulkan_core.h>
 #ifndef USING_RLVK
     #error "raylib.h must be included before rlvk.h"
 #endif
@@ -2640,10 +2641,6 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     };
 
     RLVK.State.defaultShaderProgram = rlLoadShaderProgramEx(RLVK.State.defaultVShaderModule, RLVK.State.defaultFShaderModule);
-    if (RLVK.State.defaultShaderProgram.pipeline == VK_NULL_HANDLE)
-    {
-        return;
-    }
 
     RLVK.State.currentGraphicsPipeline = RLVK.State.defaultShaderProgram.pipeline;
     RLVK.State.currentGraphicsPipelineLayout = RLVK.State.defaultShaderProgram.pipelineLayout;
@@ -3450,7 +3447,8 @@ static VkFormat rlGetVulkanFormat(rlPixelFormat format)
     switch (format)
     {
         default: return VK_FORMAT_UNDEFINED;
-        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return VK_FORMAT_B8G8R8A8_SRGB;
+        case RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: return VK_FORMAT_R8G8_SRGB;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return VK_FORMAT_R8G8B8A8_SRGB;
     }
 }
 
@@ -3458,9 +3456,9 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
 {
     rlTexture texture = { 0 };
 
-    if (format >= RL_PIXELFORMAT_COMPRESSED_DXT1_RGB) {
+    if (format == RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA || format >= RL_PIXELFORMAT_COMPRESSED_DXT1_RGB) {
         TRACELOG(RL_LOG_WARNING, "RLVK: Unsupported texture format");
-        return (rlTexture){ 0 };
+        return texture;
     }
 
     VkBuffer stagingBuffer;
@@ -3478,7 +3476,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &stagingBuffer, &stagingAllocation, NULL) != VK_SUCCESS)
     {
         TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
-        return (rlTexture){ 0 };
+        return texture;
     }
     
     VkImageCreateInfo imageCreateInfo = {
@@ -3498,7 +3496,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     if (vmaCreateImage(RLVK.allocator, &imageCreateInfo, &deviceAllocationCreateInfo, &texture.image, &texture.allocation, NULL) != VK_SUCCESS)
     {
         TRACELOG(RL_LOG_WARNING, "Vma: Failed to create image");
-        return (rlTexture){ 0 };
+        return texture;
     }
 
     // copy image data over
@@ -3506,7 +3504,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     if (vmaMapMemory(RLVK.allocator, stagingAllocation, &mappedData) != VK_SUCCESS)
     {
         TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
-        return (rlTexture){ 0 };
+        return texture;
     }
     memcpy(mappedData, data, imageSize);
     vmaUnmapMemory(RLVK.allocator, stagingAllocation);
@@ -3520,7 +3518,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
-        return (rlTexture){ 0 };
+        return texture;
     }
 
     VkImageMemoryBarrier barrier = {
@@ -3613,7 +3611,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
-        return (rlTexture){ 0 };
+        return texture;
     }
 
     VkSubmitInfo submitInfo =
@@ -3626,7 +3624,7 @@ rlTexture rlLoadTexture(const void *data, int width, int height, int format, int
     if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.transferFence) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to submit transfer command buffer");
-        return (rlTexture){ 0 };
+        return texture;
     }
 
     vkWaitForFences(RLVK.device, 1, &RLVK.transferFence, VK_TRUE, UINT64_MAX);
@@ -3694,6 +3692,8 @@ const char *rlGetPixelFormatName(unsigned int format)               // Get name 
 
 void rlUnloadTexture(const rlTexture *texture)                               // Unload texture from GPU memory 
 {
+    vkDestroySampler(RLVK.device, texture->sampler, NULL);
+    vkDestroyImageView(RLVK.device, texture->view, NULL);
     vmaDestroyImage(RLVK.allocator, texture->image, texture->allocation);
 }
 
