@@ -672,7 +672,7 @@ RLAPI int rlGetFramebufferWidth(void);                  // Get default framebuff
 RLAPI void rlSetFramebufferHeight(int height);          // Set current framebuffer height
 RLAPI int rlGetFramebufferHeight(void);                 // Get default framebuffer height
 
-RLAPI unsigned int rlGetTextureIdDefault(void);         // Get default texture id
+RLAPI rlTexture *rlGetTextureIdDefault(void);         // Get default texture id
 RLAPI rlShaderProgram *rlGetShaderIdDefault(void);          // Get default shader id
 RLAPI int *rlGetShaderLocsDefault(void);                // Get default shader locations
 
@@ -2902,10 +2902,9 @@ int rlGetFramebufferHeight(void)                  // Get default framebuffer hei
 	return 0;
 }
 
-unsigned int rlGetTextureIdDefault(void)          // Get default texture id 
+rlTexture *rlGetTextureIdDefault(void)          // Get default texture id 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetTextureIdDefault was called.");
-	return 0;
+    return &RLVK.State.defaultTexture;
 }
 
 rlShaderProgram *rlGetShaderIdDefault(void)           // Get default shader id 

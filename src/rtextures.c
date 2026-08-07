@@ -4472,7 +4472,9 @@ void UnloadTexture(Texture2D texture)
     if (texture.id > 0)
     {
         rlUnloadTexture(texture.id);
+    #ifdef USING_RLVK
         RL_FREE(texture.id);
+    #endif
 
         TRACELOG(LOG_INFO, "TEXTURE: [ID %i] Unloaded texture data from VRAM (GPU)", texture.id);
     }
@@ -4499,7 +4501,9 @@ void UnloadRenderTexture(RenderTexture2D target)
         {
             // Color texture attached to FBO is deleted
             rlUnloadTexture(target.texture.id);
+        #ifdef USING_RLVK
             RL_FREE(target.texture.id);
+        #endif
         }
 
         // NOTE: Depth texture/renderbuffer is automatically
