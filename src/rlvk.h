@@ -2618,10 +2618,12 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     "layout(location = 0) in vec2 fragTexCoord;              \n"
     "layout(location = 1) in vec4 fragColor;                 \n"
     "layout(location = 0) out vec4 finalColor;               \n"
+    "layout(set = 1, binding = 0) uniform sampler2D texture0;        \n"
     "void main()                        \n"
     "{                                  \n"
-    "    finalColor = fragColor;        \n"
-    "}                                  \n\0";
+    "    vec4 texelColor = texture(texture0, fragTexCoord);   \n"
+    "    finalColor = texelColor*fragColor;        \n"
+    "}                                  \n";
 
     if ((RLVK.State.defaultVShaderModule = rlLoadShader(defaultVShaderCode, RL_VERTEX_SHADER)) == VK_NULL_HANDLE)
     {
@@ -3288,7 +3290,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             for (int i = 0, vertexOffset = vb->vertexOffset; i < batch->drawCounter; i++)
             {
                 // Bind current draw call texture, activated as GL_TEXTURE0 and bound to sampler2D texture0 by default
-                // vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &batch->draws[i].textureDescriptorSet, 0, NULL);
+                vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 1, 1, &batch->draws[i].textureDescriptorSet, 0, NULL);
 
                 // TODO: Use indexed draw
 
@@ -4157,7 +4159,7 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
         .range = 4*4*sizeof(float)
     };
     uniformWrites[4].dstBinding = RL_SHADER_LOC_MATRIX_NORMAL;
-    
+
     vkUpdateDescriptorSets(RLVK.device, 5, uniformWrites, 0, NULL);
 
     // Create graphics pipeline
