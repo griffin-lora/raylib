@@ -3394,7 +3394,49 @@ bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overf
 
 void rlSetTexture(const rlTexture *texture)                // Set current texture for render batch and check buffers limits 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetTexture was called.");
+    if (texture == NULL)
+    {
+        // NOTE: If quads batch limit is reached, force a draw call and next batch starts
+        if (RLVK.State.vertexCounter >=
+            RLVK.currentBatch->vertexBuffer[RLVK.currentBatch->currentBuffer].elementCount*4)
+        {
+            rlDrawRenderBatch(RLVK.currentBatch);
+        }
+        RLVK.State.currentTextureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
+    }
+    else
+    {
+        RLVK.State.currentTextureDescriptorSet = texture->descriptorSet;
+        if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureDescriptorSet != texture->descriptorSet)
+        {
+            if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount > 0)
+            {
+                // Make sure current RLVK.currentBatch->draws[i].vertexCount is aligned a multiple of 4,
+                // that way, following QUADS drawing will keep aligned with index processing
+                // It implies adding some extra alignment vertex at the end of the draw,
+                // those vertex are not processed but they are considered as an additional offset
+                // for the next set of vertex to be drawn
+                if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_LINES) RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment = ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount < 4)? RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount : RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount%4);
+                else if (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode == RL_TRIANGLES) RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment = ((RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount < 4)? 1 : (4 - (RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount%4)));
+                else RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment = 0;
+
+                if (!rlCheckRenderBatchLimit(RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment))
+                {
+                    RLVK.State.vertexCounter += RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexAlignment;
+
+                    RLVK.currentBatch->drawCounter++;
+
+                    RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].mode = RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 2].mode;
+
+                }
+            }
+
+            if (RLVK.currentBatch->drawCounter >= RL_DEFAULT_BATCH_DRAWCALLS) rlDrawRenderBatch(RLVK.currentBatch);
+
+            RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].textureDescriptorSet = texture->descriptorSet;
+            RLVK.currentBatch->draws[RLVK.currentBatch->drawCounter - 1].vertexCount = 0;
+        }
+    }
 }
 
 unsigned int rlLoadVertexArray(void)              // Load vertex array (vao) if supported 
@@ -4415,6 +4457,10 @@ void rlSetUniformSampler(int locIndex, const rlTexture *texture)            // S
 
 void rlSetShader(const rlShaderProgram *program)                              // Set shader currently active (id and locations) 
 {
+    if (program == NULL)
+    {
+        program = &RLVK.State.defaultShaderProgram;
+    }
     if (RLVK.State.currentGraphicsPipeline != program->pipeline)
     {
         rlDrawRenderBatch(RLVK.currentBatch);
