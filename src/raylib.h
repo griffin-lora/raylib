@@ -385,7 +385,9 @@ typedef struct Mesh {
     unsigned int *vboId;    // OpenGL Vertex Buffer Objects id (default vertex data)
 } Mesh;
 
-typedef rlShaderUniform ShaderUniform;
+#ifdef USING_RLVK
+    typedef rlShaderUniform ShaderUniform;
+#endif
 
 // Shader
 typedef struct Shader {

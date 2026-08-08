@@ -366,6 +366,7 @@ typedef struct rlShaderProgram {
     uint32_t descriptorSize;
     uint32_t uniformCount;
 
+    void *uniformBufferData; // Data to upload to the uniform buffer when drawing
     void *mappedUniformBuffer;
     rlvkDescriptorPool descriptorPool;
     rlvkDescriptorSetLayout descriptorSetLayout;
@@ -3358,6 +3359,10 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             // Bind shader program custom uniform buffer descriptors (if it has any)
             if (program->uniformCount > 0)
             {
+                char *buf = program->mappedUniformBuffer;
+                buf += program->descriptorSize*RLVK.State.batchCounter;
+                memcpy(buf, program->uniformBufferData, program->descriptorSize);
+
                 uint32_t descriptorOffsets2[] = {
                     program->descriptorSize*RLVK.State.batchCounter
                 };
@@ -4150,6 +4155,7 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
     // Create shader-specific descriptor sets and layouts
     if (uniformCount > 0)
     {
+        // calculate size of uniform buffer
         program.structNames = (char **)RL_CALLOC(uniformCount, sizeof(char *));
         program.structOffsets = (uint32_t *)RL_CALLOC(uniformCount, sizeof(uint32_t *));
 
@@ -4166,6 +4172,10 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
             program.descriptorSize += uniforms[i].size;
         }
         program.descriptorSize = rlAlign(program.descriptorSize, 64/* RLVK.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment */);
+
+        program.uniformBufferData = RL_MALLOC(program.descriptorSize);
+
+        // create descriptor set
 
         VkDescriptorSetLayoutBinding descriptorSetBinding =
         {
@@ -4482,9 +4492,13 @@ void rlUnloadShaderProgram(const rlShaderProgram *program)                      
     {
         RL_FREE(program->structNames[i]);
     }
-    vmaUnmapMemory(RLVK.allocator, program->uniformAllocation);
-    vmaDestroyBuffer(RLVK.allocator, program->uniformBuffer, program->uniformAllocation);
+    if (program->uniformCount > 0)
+    {
+        vmaUnmapMemory(RLVK.allocator, program->uniformAllocation);
+        vmaDestroyBuffer(RLVK.allocator, program->uniformBuffer, program->uniformAllocation);
+    }
 
+    RL_FREE(program->uniformBufferData);
     RL_FREE(program->structOffsets);
     RL_FREE(program->structNames);
     
@@ -4534,10 +4548,8 @@ static uint32_t rlGetUniformValueSize(int uniformType)
 
 void rlSetUniform(int locIndex, const void *value, int uniformType, int count)  // Set shader value uniform 
 {
-    uint32_t valueSize = rlGetUniformValueSize(uniformType);
-
-    char *buf = RLVK.State.descriptorManagingCurrentBoundShaderProgram->mappedUniformBuffer;
-    buf += RLVK.State.descriptorManagingCurrentBoundShaderProgram->descriptorSize*RLVK.State.batchCounter;
+    // Essentially just does a write into a struct. TODO: Eventually just offer a struct to write into
+    char *buf = RLVK.State.descriptorManagingCurrentBoundShaderProgram->uniformBufferData;
     buf += RLVK.State.descriptorManagingCurrentBoundShaderProgram->structOffsets[locIndex];
     memcpy(buf, value, rlGetUniformValueSize(uniformType));
 }
