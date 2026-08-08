@@ -8,3 +8,4 @@ Implement functions like IsShaderValid correctly
 Deal with uint32_t vs unsigned int types properly
 Support unsigned int handles in raylib.h
 Implement error handling with gotos
+Use separate descriptor pool for standard buffer descriptors

@@ -552,6 +552,7 @@ typedef enum {
 } rlShaderStageFlags;
 
 typedef struct rlShaderUniform {
+    const char *name;
     uint32_t stageFlags;
     uint32_t size;
 } rlShaderUniform;
@@ -927,6 +928,8 @@ typedef struct rlvkData {
         VkShaderModule defaultVShaderModule;      // Default vertex shader module
         VkShaderModule defaultFShaderModule;      // Default fragment shader module
         rlShaderProgram defaultShaderProgram;       // Default graphics shader program, supports vertex color and diffuse texture
+
+        const rlShaderProgram *currentBoundShaderProgram; // NOTE: This is ONLY for descriptor management. Do not use it for rendering.
 
         VkPipeline currentGraphicsPipeline;       // Current graphics pipeline to be used on rendering
         VkPipelineLayout currentGraphicsPipelineLayout;       // Current graphics pipeline layout to be used on rendering
@@ -1795,11 +1798,13 @@ void rlCubemapParameters(const rlTexture* texture, int param, int value)  // Set
 
 void rlEnableShader(const rlShaderProgram *program)              // Enable shader program 
 {
-    vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, program->pipeline);
+    RLVK.State.currentBoundShaderProgram = program;
+    // vkCmdBindPipeline(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, program->pipeline);
 }
 
 void rlDisableShader(void)                        // Disable shader program 
 {
+    RLVK.State.currentBoundShaderProgram = NULL;
 }
 
 void rlEnableFramebuffer(unsigned int id)         // Enable render texture (fbo) 
@@ -4579,9 +4584,29 @@ int rlGetLocationAttrib(const rlShaderProgram *program, const char *attribName) 
 	return 0;
 }
 
+static uint32_t rlGetUniformValueSize(int uniformType)
+{
+    switch (uniformType)
+    {
+        case RL_SHADER_UNIFORM_FLOAT: return sizeof(float);
+        case RL_SHADER_UNIFORM_VEC2: return 2*sizeof(float);
+        case RL_SHADER_UNIFORM_VEC3: return 3*sizeof(float);
+        case RL_SHADER_UNIFORM_VEC4: return 4*sizeof(float);
+        case RL_SHADER_UNIFORM_INT: return sizeof(int32_t);
+        case RL_SHADER_UNIFORM_IVEC2: return 2*sizeof(int32_t);
+        case RL_SHADER_UNIFORM_IVEC3: return 3*sizeof(int32_t);
+        case RL_SHADER_UNIFORM_IVEC4: return 4*sizeof(int32_t);
+        case RL_SHADER_UNIFORM_UINT: return sizeof(int32_t);
+        case RL_SHADER_UNIFORM_UIVEC2: return 2*sizeof(int32_t);
+        case RL_SHADER_UNIFORM_UIVEC3: return 3*sizeof(int32_t);
+        case RL_SHADER_UNIFORM_UIVEC4: return 4*sizeof(int32_t);
+        default: return 0;
+    }
+}
+
 void rlSetUniform(int locIndex, const void *value, int uniformType, int count)  // Set shader value uniform 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniform was called.");
+    memcpy(RLVK.State.currentBoundShaderProgram->mappedUniformBuffers[locIndex], value, rlGetUniformValueSize(uniformType));
 }
 
 void rlSetUniformMatrix(int locIndex, Matrix mat)                         // Set shader value matrix 
