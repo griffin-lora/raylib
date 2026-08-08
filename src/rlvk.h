@@ -729,6 +729,8 @@ RLAPI void rlResizeFramebuffer(int width, int height);                    // Res
 RLAPI rlvkShaderModule rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
 RLAPI rlShaderProgram rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
 RLAPI rlShaderProgram rlLoadShaderProgramEx(rlvkShaderModule vsModule, rlvkShaderModule fsModule); // Load shader program, using already loaded shader modules
+RLAPI rlShaderProgram rlLoadShaderProgramExA(const char *vsCode, const char *fsCode);               // Load shader with descriptor layout from code strings
+RLAPI rlShaderProgram rlLoadShaderProgramPro(rlvkShaderModule vsModule, rlvkShaderModule fsModule); // Load shader program with descriptor layout, using already loaded shader modules
 RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId);               // Load compute shader program
 RLAPI void rlUnloadShader(rlvkShaderModule shaderModule);                                     // Unload shader, loaded with rlLoadShader()
 RLAPI void rlUnloadShaderProgram(const rlShaderProgram *program);                              // Unload shader program
@@ -4147,6 +4149,11 @@ VkShaderModule rlLoadShader(const char *code, int type)                     // L
 
 rlShaderProgram rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
 {   
+    return rlLoadShaderProgramExA(vsCode, fsCode);
+}
+
+rlShaderProgram rlLoadShaderProgramExA(const char *vsCode, const char *fsCode)  // Load shader from code strings 
+{   
     rlShaderProgram program = { 0 };
 
     VkShaderModule vsModule;
@@ -4183,6 +4190,11 @@ rlShaderProgram rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // 
 }
 
 rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fsModule)  // Load shader program, using already loaded shader modules 
+{
+    return rlLoadShaderProgramPro(vsModule, fsModule);
+}
+
+rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule fsModule)  // Load shader program, using already loaded shader modules 
 {
     rlShaderProgram program = { 0 };
 

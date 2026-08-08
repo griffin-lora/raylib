@@ -27,6 +27,8 @@ int main(void)
 
     InitWindow(screenWidth, screenHeight, "raylib [shapes] example - basic shapes");
 
+    Shader shader = LoadShader(0, "examples/core/resources/fragment.glsl");
+
     float rotation = 0.0f;
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
@@ -43,6 +45,7 @@ int main(void)
         // Draw
         //----------------------------------------------------------------------------------
         BeginDrawing();
+        BeginShaderMode(shader);
 
             ClearBackground(RAYWHITE);
 
@@ -77,9 +80,12 @@ int main(void)
             // NOTE: We draw all LINES based shapes together to optimize internal drawing,
             // this way, all LINES are rendered in a single draw pass
             DrawLine(18, 42, screenWidth - 18, 42, BLACK);
+        EndShaderMode();
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
+
+    UnloadShader(shader);
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
