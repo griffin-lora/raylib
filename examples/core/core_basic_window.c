@@ -1,15 +1,17 @@
 /*******************************************************************************************
 *
-*   raylib [models] example - geometric shapes
+*   raylib [core] example - scissor test
 *
 *   Example complexity rating: [★☆☆☆] 1/4
 *
-*   Example originally created with raylib 1.0, last time updated with raylib 3.5
+*   Example originally created with raylib 2.5, last time updated with raylib 3.0
+*
+*   Example contributed by Chris Dill (@MysteriousSpace) and reviewed by Ramon Santamaria (@raysan5)
 *
 *   Example licensed under an unmodified zlib/libpng license, which is an OSI-certified,
 *   BSD-like license that allows static linking with closed source software
 *
-*   Copyright (c) 2014-2025 Ramon Santamaria (@raysan5)
+*   Copyright (c) 2019-2025 Chris Dill (@MysteriousSpace)
 *
 ********************************************************************************************/
 
@@ -25,15 +27,10 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [models] example - geometric shapes");
+    InitWindow(screenWidth, screenHeight, "raylib [core] example - scissor test");
 
-    // Define the camera to look into our 3d world
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 10.0f, 10.0f };
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
-    camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    Rectangle scissorArea = { 0, 0, 300, 300 };
+    bool scissorMode = true;
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
@@ -41,42 +38,32 @@ int main(void)
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
-        UpdateCamera(&camera, CAMERA_ORBITAL);
         // Update
         //----------------------------------------------------------------------------------
-        // TODO: Update your variables here
+        if (IsKeyPressed(KEY_S)) scissorMode = !scissorMode;
+
+        // Centre the scissor area around the mouse position
+        scissorArea.x = GetMouseX() - scissorArea.width/2;
+        scissorArea.y = GetMouseY() - scissorArea.height/2;
         //----------------------------------------------------------------------------------
 
         // Draw
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
+
+            if (scissorMode) BeginScissorMode((int)scissorArea.x, (int)scissorArea.y, (int)scissorArea.width, (int)scissorArea.height);
             ClearBackground(RAYWHITE);
 
-            BeginMode3D(camera);
+            // Draw full screen rectangle and some text
+            // NOTE: Only part defined by scissor area will be rendered
+            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), RED);
+            DrawText("Move the mouse around to reveal this text!", 190, 200, 20, LIGHTGRAY);
 
-                DrawCube((Vector3){-4.0f, 0.0f, 2.0f}, 2.0f, 5.0f, 2.0f, RED);
-                DrawCubeWires((Vector3){-4.0f, 0.0f, 2.0f}, 2.0f, 5.0f, 2.0f, GOLD);
-                DrawCubeWires((Vector3){-4.0f, 0.0f, -2.0f}, 3.0f, 6.0f, 2.0f, MAROON);
+            if (scissorMode) EndScissorMode();
 
-                DrawSphere((Vector3){-1.0f, 0.0f, -2.0f}, 1.0f, GREEN);
-                DrawSphereWires((Vector3){1.0f, 0.0f, 2.0f}, 2.0f, 16, 16, LIME);
-
-                DrawCylinder((Vector3){4.0f, 0.0f, -2.0f}, 1.0f, 2.0f, 3.0f, 4, SKYBLUE);
-                DrawCylinderWires((Vector3){4.0f, 0.0f, -2.0f}, 1.0f, 2.0f, 3.0f, 4, DARKBLUE);
-                DrawCylinderWires((Vector3){4.5f, -1.0f, 2.0f}, 1.0f, 1.0f, 2.0f, 6, BROWN);
-
-                DrawCylinder((Vector3){1.0f, 0.0f, -4.0f}, 0.0f, 1.5f, 3.0f, 8, GOLD);
-                DrawCylinderWires((Vector3){1.0f, 0.0f, -4.0f}, 0.0f, 1.5f, 3.0f, 8, PINK);
-
-                DrawCapsule     ((Vector3){-3.0f, 1.5f, -4.0f}, (Vector3){-4.0f, -1.0f, -4.0f}, 1.2f, 8, 8, VIOLET);
-                DrawCapsuleWires((Vector3){-3.0f, 1.5f, -4.0f}, (Vector3){-4.0f, -1.0f, -4.0f}, 1.2f, 8, 8, PURPLE);
-
-                DrawGrid(10, 1.0f);        // Draw a grid
-
-            EndMode3D();
-
-            DrawFPS(10, 10);
+            DrawRectangleLinesEx(scissorArea, 1, BLACK);
+            DrawText("Press S to toggle scissor test", 10, 10, 20, BLACK);
 
         EndDrawing();
         //----------------------------------------------------------------------------------

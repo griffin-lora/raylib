@@ -883,8 +883,6 @@ typedef struct rlvkData {
     VmaAllocator allocator;
     VkRenderPass renderPass;
     VkFramebuffer* swapChainFramebuffers;
-    VkViewport viewport;
-    VkRect2D scissor;
     VkCommandPool commandPool;
     VkCommandBuffer transferCommandBuffer;
     VkCommandBuffer renderCommandBuffer;
@@ -939,6 +937,10 @@ typedef struct rlvkData {
         bool stereoRender;                  // Stereo rendering flag
         Matrix projectionStereo[2];         // VR stereo rendering eyes projection matrices
         Matrix viewOffsetStereo[2];         // VR stereo rendering eyes view offset matrices
+
+        // Dynamic state variables
+        VkViewport viewport;
+        VkRect2D scissor;
 
         // Blending variables
         int currentBlendMode;               // Blending mode active
@@ -1206,8 +1208,9 @@ void rlBeginFrame(void)
 
     vkCmdBeginRenderPass(RLVK.renderCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.viewport);
-    vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
+    vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.State.viewport);
+    // vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.State.scissor);
+    rlDisableScissorTest();
     vkCmdSetPrimitiveTopology(RLVK.renderCommandBuffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
     rlDisableDepthTest();
@@ -1519,12 +1522,12 @@ void rlOrtho(double left, double right, double bottom, double top, double znear,
 
 void rlViewport(int x, int y, int width, int height)  // Set the viewport area 
 {
-    RLVK.viewport.x = x;
-    RLVK.viewport.y = y;
-    RLVK.viewport.width = width;
-    RLVK.viewport.height = height;
+    RLVK.State.viewport.x = x;
+    RLVK.State.viewport.y = y;
+    RLVK.State.viewport.width = width;
+    RLVK.State.viewport.height = height;
 
-    vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.viewport);
+    vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.State.viewport);
 }
 
 // Set clip planes distances
@@ -1916,17 +1919,28 @@ void rlEnableScissorTest(void)                    // Enable scissor test
 
 void rlDisableScissorTest(void)                   // Disable scissor test 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableScissorTest was called.");
+    VkRect2D scissor =
+    {
+        .offset = { 0, 0 },
+        .extent = RLVK.swapChainExtent
+    };
+
+    vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &scissor);
 }
 
 void rlScissor(int x, int y, int width, int height)  // Scissor test 
 {
-    RLVK.scissor.offset.x = x;
-    RLVK.scissor.offset.y = y;
-    RLVK.scissor.extent.width = width;
-    RLVK.scissor.extent.height = height;
+    y = RLVK.swapChainExtent.height - y - height;
 
-    vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+
+    RLVK.State.scissor.offset.x = x;
+    RLVK.State.scissor.offset.y = y;
+    RLVK.State.scissor.extent.width = width;
+    RLVK.State.scissor.extent.height = height;
+
+    vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.State.scissor);
 }
 
 void rlEnablePointMode(void)                      // Enable point mode 
@@ -2002,16 +2016,16 @@ void rlClearColor(unsigned char r, unsigned char g, unsigned char b, unsigned ch
     rlBegin(RL_QUADS);
 
     rlColor4ub(r, g, b, a);
-    rlVertex2f(RLVK.viewport.width, 0.0f);
+    rlVertex2f(RLVK.swapChainExtent.width, 0.0f);
     
     rlColor4ub(r, g, b, a);
     rlVertex2f(0.0f, 0.0f);
     
     rlColor4ub(r, g, b, a);
-    rlVertex2f(0.0f, RLVK.viewport.height);
+    rlVertex2f(0.0f, RLVK.swapChainExtent.height);
     
     rlColor4ub(r, g, b, a);
-    rlVertex2f(RLVK.viewport.width, RLVK.viewport.height);
+    rlVertex2f(RLVK.swapChainExtent.width, RLVK.swapChainExtent.height);
 
     rlEnd();
 }
@@ -2782,7 +2796,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         return;
     }
     
-    RLVK.viewport = (VkViewport)
+    RLVK.State.viewport = (VkViewport)
     {
         .x = 0.0f,
         .y = 0.0f,
@@ -2792,7 +2806,7 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .maxDepth = 1.0f
     };
 
-    RLVK.scissor = (VkRect2D)
+    RLVK.State.scissor = (VkRect2D)
     {
         .offset = { 0, 0 },
         .extent = RLVK.swapChainExtent
@@ -4525,9 +4539,9 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewportCount = 1,
-        .pViewports = &RLVK.viewport,
+        .pViewports = &RLVK.State.viewport,
         .scissorCount = 1,
-        .pScissors = &RLVK.scissor
+        .pScissors = &RLVK.State.scissor
     };
 
     VkPipelineRasterizationStateCreateInfo rasterizer =
