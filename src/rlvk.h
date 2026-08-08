@@ -1210,8 +1210,10 @@ void rlBeginFrame(void)
     vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
     vkCmdSetPrimitiveTopology(RLVK.renderCommandBuffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
-    vkCmdSetDepthTestEnable(RLVK.renderCommandBuffer, VK_FALSE);
-    vkCmdSetDepthWriteEnable(RLVK.renderCommandBuffer, VK_TRUE);
+    rlDisableDepthTest();
+    rlEnableDepthMask();
+    rlEnableBackfaceCulling();
+    rlSetCullFace(RL_CULL_FACE_BACK);
 }
 
 static void rlUpdateBatchBuffers(rlRenderBatch *batch)
@@ -1521,6 +1523,8 @@ void rlViewport(int x, int y, int width, int height)  // Set the viewport area
     RLVK.viewport.y = y;
     RLVK.viewport.width = width;
     RLVK.viewport.height = height;
+
+    vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.viewport);
 }
 
 // Set clip planes distances
@@ -1882,12 +1886,12 @@ void rlDisableDepthMask(void)                     // Disable depth write
 
 void rlEnableBackfaceCulling(void)                // Enable backface culling 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableBackfaceCulling was called.");
+    vkCmdSetCullMode(RLVK.renderCommandBuffer, VK_CULL_MODE_BACK_BIT);
 }
 
 void rlDisableBackfaceCulling(void)               // Disable backface culling 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableBackfaceCulling was called.");
+    vkCmdSetCullMode(RLVK.renderCommandBuffer, VK_CULL_MODE_NONE);
 }
 
 void rlColorMask(bool r, bool g, bool b, bool a)  // Color mask control 
@@ -1897,7 +1901,12 @@ void rlColorMask(bool r, bool g, bool b, bool a)  // Color mask control
 
 void rlSetCullFace(int mode)                      // Set face culling mode 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetCullFace was called.");
+    switch (mode)
+    {
+        case RL_CULL_FACE_BACK: vkCmdSetFrontFace(RLVK.renderCommandBuffer, VK_FRONT_FACE_COUNTER_CLOCKWISE); break;
+        case RL_CULL_FACE_FRONT: vkCmdSetFrontFace(RLVK.renderCommandBuffer, VK_FRONT_FACE_CLOCKWISE); break;
+        default: break;
+    }
 }
 
 void rlEnableScissorTest(void)                    // Enable scissor test 
@@ -1912,7 +1921,12 @@ void rlDisableScissorTest(void)                   // Disable scissor test
 
 void rlScissor(int x, int y, int width, int height)  // Scissor test 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlScissor was called.");
+    RLVK.scissor.offset.x = x;
+    RLVK.scissor.offset.y = y;
+    RLVK.scissor.extent.width = width;
+    RLVK.scissor.extent.height = height;
+
+    vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
 }
 
 void rlEnablePointMode(void)                      // Enable point mode 
@@ -4432,7 +4446,9 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
         VK_DYNAMIC_STATE_SCISSOR,
         VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY,
         VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
-        VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE
+        VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE,
+        VK_DYNAMIC_STATE_CULL_MODE,
+        VK_DYNAMIC_STATE_FRONT_FACE
     };
 
     VkPipelineDynamicStateCreateInfo dynamicState =
