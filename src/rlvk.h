@@ -72,6 +72,7 @@
 *
 **********************************************************************************************/
 
+#include <vulkan/vulkan_core.h>
 #ifndef USING_RLVK
     #error "raylib.h must be included before rlvk.h"
 #endif
@@ -1208,6 +1209,9 @@ void rlBeginFrame(void)
     vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.viewport);
     vkCmdSetScissor(RLVK.renderCommandBuffer, 0, 1, &RLVK.scissor);
     vkCmdSetPrimitiveTopology(RLVK.renderCommandBuffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+    vkCmdSetDepthTestEnable(RLVK.renderCommandBuffer, VK_FALSE);
+    vkCmdSetDepthWriteEnable(RLVK.renderCommandBuffer, VK_TRUE);
 }
 
 static void rlUpdateBatchBuffers(rlRenderBatch *batch)
@@ -1858,22 +1862,22 @@ void rlDisableColorBlend(void)                    // Disable color blending
 
 void rlEnableDepthTest(void)                      // Enable depth test 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableDepthTest was called.");
+    vkCmdSetDepthTestEnable(RLVK.renderCommandBuffer, VK_TRUE);
 }
 
 void rlDisableDepthTest(void)                     // Disable depth test 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableDepthTest was called.");
+    vkCmdSetDepthTestEnable(RLVK.renderCommandBuffer, VK_FALSE);
 }
 
 void rlEnableDepthMask(void)                      // Enable depth write 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableDepthMask was called.");
+    vkCmdSetDepthWriteEnable(RLVK.renderCommandBuffer, VK_TRUE);
 }
 
 void rlDisableDepthMask(void)                     // Disable depth write 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableDepthMask was called.");
+    vkCmdSetDepthWriteEnable(RLVK.renderCommandBuffer, VK_FALSE);
 }
 
 void rlEnableBackfaceCulling(void)                // Enable backface culling 
@@ -3358,7 +3362,7 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
 
     batch.bufferCount = numBuffers;    // Record buffer count
     batch.drawCounter = 1;             // Reset draws counter
-    batch.currentDepth = -1.0f + (1.0f/20000.0f);        // Reset depth value
+    batch.currentDepth = -1.0f;        // Reset depth value
     //--------------------------------------------------------------------------------------------
 
     return batch;
@@ -3552,7 +3556,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     RLVK.State.batchCounter++;
 
     // Reset depth for next draw
-    batch->currentDepth = -1.0f + (1.0f/20000.0f);
+    batch->currentDepth = -1.0f;
 
     // Restore projection/modelview matrices
     RLVK.State.projection = matProjection;
@@ -4426,7 +4430,9 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
     {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
-        VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY
+        VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY,
+        VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
+        VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE
     };
 
     VkPipelineDynamicStateCreateInfo dynamicState =
@@ -4562,8 +4568,8 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
     VkPipelineDepthStencilStateCreateInfo depthStencil =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_TRUE,
-        .depthWriteEnable = VK_TRUE,
+        .depthTestEnable = VK_FALSE,
+        .depthWriteEnable = VK_FALSE,
         .depthCompareOp = VK_COMPARE_OP_LESS,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = VK_FALSE
