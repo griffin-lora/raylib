@@ -367,6 +367,7 @@ typedef struct rlShaderProgram {
 
     rlvkDescriptorPool descriptorPool;
     rlvkDescriptorSetLayout descriptorSetLayout;
+    char **uniformNames;
     rlvkBuffer *uniformBuffers;
     rlvkAllocation *uniformAllocations;
     uint32_t uniformCount;
@@ -4221,6 +4222,16 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
     // Create shader-specific descriptor sets and layouts
     if (uniformCount > 0)
     {
+        program.uniformNames = (char **)RL_CALLOC(uniformCount, sizeof(char *));
+
+        for (uint32_t i = 0; i < uniformCount; i++)
+        {
+            char *name = (char *)RL_CALLOC(strlen(uniforms[i].name) + 1, sizeof(char));
+            strcpy(name, uniforms[i].name);
+
+            program.uniformNames[i] = name;
+        }
+
         VkDescriptorSetLayoutBinding *descriptorSetBindings = (VkDescriptorSetLayoutBinding *)RL_CALLOC(uniformCount, sizeof(VkDescriptorSetLayoutBinding));
 
         for (uint32_t i = 0; i < uniformCount; i++)
@@ -4558,10 +4569,12 @@ void rlUnloadShaderProgram(const rlShaderProgram *program)                      
 {
     for (uint32_t i = 0; i < program->uniformCount; i++)
     {
+        RL_FREE(program->uniformNames[i]);
         vmaUnmapMemory(RLVK.allocator, program->uniformAllocations[i]);
         vmaDestroyBuffer(RLVK.allocator, program->uniformBuffers[i], program->uniformAllocations[i]);
     }
 
+    RL_FREE(program->uniformNames);
     RL_FREE(program->uniformBuffers);
     RL_FREE(program->uniformAllocations);
     RL_FREE(program->mappedUniformBuffers);
@@ -4574,8 +4587,14 @@ void rlUnloadShaderProgram(const rlShaderProgram *program)                      
 
 int rlGetLocationUniform(const rlShaderProgram *program, const char *uniformName)        // Get shader location uniform, requires shader program id 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
-	return 0;
+    for (uint32_t i = 0; i < program->uniformCount; i++)
+    {
+        if (strcmp(uniformName, program->uniformNames[i]) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
 
 int rlGetLocationAttrib(const rlShaderProgram *program, const char *attribName)          // Get shader location attribute, requires shader program id 
