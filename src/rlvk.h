@@ -363,14 +363,15 @@ typedef struct rlShaderProgram {
     rlvkPipeline pipeline;
     rlvkPipelineLayout pipelineLayout;
     rlvkDescriptorSet descriptorSet;
-    void **mappedUniformBuffers;
+    uint32_t *descriptorSizes;
+    uint32_t uniformCount;
 
+    void **mappedUniformBuffers;
     rlvkDescriptorPool descriptorPool;
     rlvkDescriptorSetLayout descriptorSetLayout;
     char **uniformNames;
     rlvkBuffer *uniformBuffers;
     rlvkAllocation *uniformAllocations;
-    uint32_t uniformCount;
 } rlShaderProgram;
 
 // OpenGL version
@@ -3384,11 +3385,16 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, program->pipelineLayout, 0, 1, &RLVK.bufferDescriptorSet, RL_UNIFORM_BUFFER_COUNT, descriptorOffsets);
 
-            //
-
+            // Bind shader program custom uniform buffer descriptors (if it has any)
             if (program->uniformCount > 0)
             {
+
                 uint32_t *descriptorOffsets2 = (uint32_t *)RL_CALLOC(program->uniformCount, sizeof(uint32_t));
+
+                for (uint32_t i = 0; i < program->uniformCount; i++)
+                {
+                    descriptorOffsets2[i] = program->descriptorSizes[i]*RLVK.State.batchCounter;
+                }
                 
                 vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, program->pipelineLayout, 2, 1, &program->descriptorSet, program->uniformCount, descriptorOffsets2);
 
@@ -4155,6 +4161,23 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
     return rlLoadShaderProgramPro(vsModule, fsModule, 0, NULL);
 }
 
+
+static uint32_t rlAlign(uint32_t n, uint32_t m) // Returns the smallest multiple of $m$ greater than or equal to $n$.
+{
+    // $n = mq + r$
+    uint32_t q = n/m;
+    uint32_t r = n%m;
+
+    if (r == 0)
+    {
+        return n;
+    }
+    else
+    {
+        return m*(q + 1);
+    }
+}
+
 rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule fsModule, uint32_t uniformCount, const rlShaderUniform *uniforms)  // Load shader program, using already loaded shader modules 
 {
     rlShaderProgram program = { 0 };
@@ -4171,6 +4194,12 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
             strcpy(name, uniforms[i].name);
 
             program.uniformNames[i] = name;
+        }
+
+        program.descriptorSizes = (uint32_t *)RL_CALLOC(uniformCount, sizeof(uint32_t *));
+        for (uint32_t i = 0; i < uniformCount; i++)
+        {
+            program.descriptorSizes[i] = rlAlign(uniforms[i].size, RLVK.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment);
         }
 
         VkDescriptorSetLayoutBinding *descriptorSetBindings = (VkDescriptorSetLayoutBinding *)RL_CALLOC(uniformCount, sizeof(VkDescriptorSetLayoutBinding));
@@ -4253,7 +4282,7 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
 
         for (uint32_t i = 0; i < uniformCount; i++)
         {
-            uniformBufferCreateInfo.size = RL_DEFAULT_BATCH_COUNT_PER_FRAME*uniforms[i].size;
+            uniformBufferCreateInfo.size = RL_DEFAULT_BATCH_COUNT_PER_FRAME*program.descriptorSizes[i];
 
             if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[i], &program.uniformAllocations[i], NULL) != VK_SUCCESS)
             {
@@ -4516,6 +4545,7 @@ void rlUnloadShaderProgram(const rlShaderProgram *program)                      
     }
 
     RL_FREE(program->uniformNames);
+    RL_FREE(program->descriptorSizes);
     RL_FREE(program->uniformBuffers);
     RL_FREE(program->uniformAllocations);
     RL_FREE(program->mappedUniformBuffers);
