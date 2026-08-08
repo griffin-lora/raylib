@@ -1,4 +1,6 @@
 Add (better) pipeline layout support (possibly use a unified descriptor set system?)
+"Support" shader locations
 Use vk-bootstrap
 Add textures
 Fix loading error bugs (returning batch and program)
+Support rmodels

@@ -838,6 +838,8 @@ RLAPI void rlWaitIdle(void);
 #define RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE1       "texture1"          // texture1 (texture slot active 1)
 #define RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE2       "texture2"          // texture2 (texture slot active 2)
 
+#define RL_UNIFORM_BUFFER_COUNT 5
+
 //----------------------------------------------------------------------------------
 // Module Types and Structures Definition
 //----------------------------------------------------------------------------------
@@ -876,7 +878,14 @@ typedef struct rlvkData {
     VkFence transferFence;
     VkPhysicalDeviceProperties physicalDeviceProperties;
     VkDescriptorPool descriptorPool;
+    VkDescriptorSetLayout bufferDescriptorSetLayout;
     VkDescriptorSetLayout textureDescriptorSetLayout;
+
+    VkDescriptorSet bufferDescriptorSet;
+    void *mappedUniformBuffers[RL_UNIFORM_BUFFER_COUNT];
+
+    rlvkBuffer uniformBuffers[RL_UNIFORM_BUFFER_COUNT];
+    rlvkAllocation uniformAllocations[RL_UNIFORM_BUFFER_COUNT];
 
     //-----------
 
@@ -2652,16 +2661,20 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
     VkDescriptorPoolSize poolSizes[] = {
         {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = RL_UNIFORM_BUFFER_COUNT
+        },
+        {
             .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1
-        },
+        }
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .poolSizeCount = 1,
+        .poolSizeCount = 2,
         .pPoolSizes = poolSizes,
-        .maxSets = RL_DEFAULT_MAX_TEXTURES
+        .maxSets = RL_DEFAULT_MAX_TEXTURES // TODO: Update this properly
     };
 
     if (vkCreateDescriptorPool(RLVK.device, &descriptorPoolCreateInfo, NULL, &RLVK.descriptorPool) != VK_SUCCESS)
@@ -2669,6 +2682,155 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor pool");
         return;
     }
+
+    VkDescriptorSetLayoutBinding descriptorSetBindings[] = {
+        {
+            .descriptorCount = 1,
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 3,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .descriptorCount = 1,
+            .binding = 4,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        }
+    };
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = RL_UNIFORM_BUFFER_COUNT,
+        .pBindings = descriptorSetBindings
+    };
+
+    if (vkCreateDescriptorSetLayout(RLVK.device, &descriptorSetLayoutCreateInfo, 0, &RLVK.bufferDescriptorSetLayout) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor set layout");
+        return;
+    }
+
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = RLVK.descriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &RLVK.bufferDescriptorSetLayout
+    };
+
+    if (vkAllocateDescriptorSets(RLVK.device, &descriptorSetAllocateInfo, &RLVK.bufferDescriptorSet) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create descriptor sets");
+        return;
+    }
+
+    VkDescriptorBufferInfo uniformBufferInfos[RL_UNIFORM_BUFFER_COUNT];
+    VkWriteDescriptorSet uniformWrites[RL_UNIFORM_BUFFER_COUNT];
+
+    for (uint32_t i = 0; i < RL_UNIFORM_BUFFER_COUNT; i++)
+    {
+        VkWriteDescriptorSet write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = RLVK.bufferDescriptorSet,
+            .dstArrayElement = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1,
+            .pBufferInfo = &uniformBufferInfos[i]
+        };
+        uniformWrites[i] = write;
+    }
+
+    VkBufferCreateInfo uniformBufferCreateInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    };
+
+    // location 0 matrix mvp
+    uniformBufferCreateInfo.size = 4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME;
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_MVP], &RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_MVP], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return;
+    }
+    vmaMapMemory(RLVK.allocator, RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_MVP], &RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_MVP]);
+    uniformBufferInfos[0] = (VkDescriptorBufferInfo) {
+        .buffer = RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_MVP],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[0].dstBinding = RL_SHADER_LOC_MATRIX_MVP;
+
+    // location 1 matrix view
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_VIEW], &RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_VIEW], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return;
+    }
+    vmaMapMemory(RLVK.allocator, RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_VIEW], &RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_VIEW]);
+    uniformBufferInfos[1] = (VkDescriptorBufferInfo) {
+        .buffer = RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_VIEW],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[1].dstBinding = RL_SHADER_LOC_MATRIX_VIEW;
+
+    // location 2 matrix projection
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION], &RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_PROJECTION], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return;
+    }
+    vmaMapMemory(RLVK.allocator, RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_PROJECTION], &RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION]);
+    uniformBufferInfos[2] = (VkDescriptorBufferInfo) {
+        .buffer = RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[2].dstBinding = RL_SHADER_LOC_MATRIX_PROJECTION;
+
+    // location 3 matrix model
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_MODEL], &RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_MODEL], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return;
+    }
+    vmaMapMemory(RLVK.allocator, RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_MODEL], &RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_MODEL]);
+    uniformBufferInfos[3] = (VkDescriptorBufferInfo) {
+        .buffer = RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_MODEL],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[3].dstBinding = RL_SHADER_LOC_MATRIX_MODEL;
+
+    // location 4 matrix normal
+    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL], &RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_NORMAL], NULL) != VK_SUCCESS)
+    {
+        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+        return;
+    }
+    vmaMapMemory(RLVK.allocator, RLVK.uniformAllocations[RL_SHADER_LOC_MATRIX_NORMAL], &RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL]);
+    uniformBufferInfos[4] = (VkDescriptorBufferInfo) {
+        .buffer = RLVK.uniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL],
+        .range = 4*4*sizeof(float)
+    };
+    uniformWrites[4].dstBinding = RL_SHADER_LOC_MATRIX_NORMAL;
+
+    vkUpdateDescriptorSets(RLVK.device, RL_UNIFORM_BUFFER_COUNT, uniformWrites, 0, NULL);
 
     VkDescriptorSetLayoutBinding textureDescriptorSetBindings[] = {
         {
@@ -2806,7 +2968,14 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
 void rlvkClose(void)                              // De-initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
+    for (uint32_t i = 0; i < RL_UNIFORM_BUFFER_COUNT; i++)
+    {
+        vmaUnmapMemory(RLVK.allocator, RLVK.uniformAllocations[i]);
+        vmaDestroyBuffer(RLVK.allocator, RLVK.uniformBuffers[i], RLVK.uniformAllocations[i]);
+    }
+
     vkDestroyDescriptorSetLayout(RLVK.device, RLVK.textureDescriptorSetLayout, NULL);
+    vkDestroyDescriptorSetLayout(RLVK.device, RLVK.bufferDescriptorSetLayout, NULL);
     vkDestroyDescriptorPool(RLVK.device, RLVK.descriptorPool, NULL);
 
     vkDestroySemaphore(RLVK.device, RLVK.imageAvailableSemaphore, 0);
@@ -3224,28 +3393,28 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             // Create modelview-projection matrix and upload to shader
             Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, rlMatrixMultiply(RLVK.State.projection, flipVertical));
-            char *buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_MVP];
+            char *buf = RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_MVP];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(matMVP), 4*4*sizeof(float));
 
             // location 1 matrix projection
-            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION];
+            buf = RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_PROJECTION];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(RLVK.State.projection), 4*4*sizeof(float));
 
             // location 2 matrix view
-            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_VIEW];
+            buf = RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_VIEW];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(RLVK.State.modelview), 4*4*sizeof(float));
 
             // location 3 matrix model
-            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_MODEL];
+            buf = RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_MODEL];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(RLVK.State.transform), 4*4*sizeof(float));
 
             // location 4 matrix normal
             Matrix normal = rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform));
-            buf = RLVK.State.currentGraphicsPipelineMappedUniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL];
+            buf = RLVK.mappedUniformBuffers[RL_SHADER_LOC_MATRIX_NORMAL];
             buf += 4*4*sizeof(float)*RLVK.State.batchCounter;
             memcpy(buf, rlMatrixToFloat(normal), 4*4*sizeof(float));
             
@@ -3257,7 +3426,11 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
                 4*4*sizeof(float)*RLVK.State.batchCounter
             };
 
-            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &RLVK.State.currentGraphicsPipelineDescriptorSet, 5, descriptorOffsets);
+            vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &RLVK.bufferDescriptorSet, RL_UNIFORM_BUFFER_COUNT, descriptorOffsets);
+
+            //
+
+            // vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, RLVK.State.currentGraphicsPipelineLayout, 0, 1, &RLVK.State.currentGraphicsPipelineDescriptorSet, RL_UNIFORM_BUFFER_COUNT, descriptorOffsets);
 
             VkDeviceSize offsets[4] = { 0 };
 
@@ -4080,7 +4253,7 @@ rlShaderProgram rlLoadShaderProgramEx(VkShaderModule vsModule, VkShaderModule fs
         return program;
     }
 
-    VkDescriptorSetLayout layouts[2] = { program.descriptorSetLayout, RLVK.textureDescriptorSetLayout };
+    VkDescriptorSetLayout layouts[2] = { RLVK.bufferDescriptorSetLayout, RLVK.textureDescriptorSetLayout };
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
     {
