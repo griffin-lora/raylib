@@ -1470,12 +1470,12 @@ void rlFrustum(double left, double right, double bottom, double top, double znea
 
     matFrustum.m8 = ((float)right + (float)left)/rl;
     matFrustum.m9 = ((float)top + (float)bottom)/tb;
-    matFrustum.m10 = -((float)zfar + (float)znear)/fn;
+    matFrustum.m10 = -((float)zfar)/fn;
     matFrustum.m11 = -1.0f;
 
     matFrustum.m12 = 0.0f;
     matFrustum.m13 = 0.0f;
-    matFrustum.m14 = -((float)zfar*(float)znear*2.0f)/fn;
+    matFrustum.m14 = -((float)zfar*(float)znear)/fn;
     matFrustum.m15 = 0.0f;
 
     *RLVK.State.currentMatrix = rlMatrixMultiply(*RLVK.State.currentMatrix, matFrustum);
