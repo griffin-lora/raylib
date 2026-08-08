@@ -1504,24 +1504,29 @@ void rlOrtho(double left, double right, double bottom, double top, double znear,
 
 void rlViewport(int x, int y, int width, int height)  // Set the viewport area 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlViewport was called.");
+    RLVK.viewport.x = x;
+    RLVK.viewport.y = y;
+    RLVK.viewport.width = width;
+    RLVK.viewport.height = height;
 }
 
-void rlSetClipPlanes(double nearPlane, double farPlane)     // Set clip planes distances 
+// Set clip planes distances
+void rlSetClipPlanes(double nearPlane, double farPlane)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetClipPlanes was called.");
+    rlCullDistanceNear = nearPlane;
+    rlCullDistanceFar = farPlane;
 }
 
-double rlGetCullDistanceNear(void)                // Get cull plane distance near 
+// Get cull plane distance near
+double rlGetCullDistanceNear(void)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetCullDistanceNear was called.");
-	return 0.0;
+    return rlCullDistanceNear;
 }
 
-double rlGetCullDistanceFar(void)                 // Get cull plane distance far 
+// Get cull plane distance far
+double rlGetCullDistanceFar(void)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetCullDistanceFar was called.");
-	return 0.0;
+    return rlCullDistanceFar;
 }
 
 void rlBegin(int mode)                            // Initialize drawing mode (how to organize vertex) 
@@ -4551,17 +4556,28 @@ void rlSetUniform(int locIndex, const void *value, int uniformType, int count)  
     // Essentially just does a write into a struct. TODO: Eventually just offer a struct to write into
     char *buf = RLVK.State.descriptorManagingCurrentBoundShaderProgram->uniformBufferData;
     buf += RLVK.State.descriptorManagingCurrentBoundShaderProgram->structOffsets[locIndex];
-    memcpy(buf, value, rlGetUniformValueSize(uniformType));
+    memcpy(buf, value, rlGetUniformValueSize(uniformType)*count);
 }
 
 void rlSetUniformMatrix(int locIndex, Matrix mat)                         // Set shader value matrix 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformMatrix was called.");
+    rlSetUniform(locIndex, rlMatrixToFloat(mat), RL_SHADER_UNIFORM_VEC4, 4);
 }
 
-void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count)     // Set shader value matrices 
+void rlSetUniformMatrices(int locIndex, const Matrix *matrices, int count)     // Set shader value matrices 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformMatrices was called.");
+    // TODO: Make sure this syntax is actually right.
+
+    float (*mat)[4*4] = (float (*)[4*4])RL_CALLOC(count, 4*4*sizeof(float));
+
+    for (int i = 0; i < count; i++)
+    {
+        memcpy(mat[i], rlMatrixToFloat(matrices[i]), 4*4*sizeof(float));
+    }
+
+    rlSetUniform(locIndex, mat, RL_SHADER_UNIFORM_VEC4, 4*count);
+
+    RL_FREE(mat);
 }
 
 void rlSetUniformSampler(int locIndex, const rlTexture *texture)            // Set shader value sampler 
@@ -4630,54 +4646,74 @@ void rlBindImageTexture(const rlTexture* texture, unsigned int index, int format
     TRACELOG(RL_LOG_TRACE, "rlvk function rlBindImageTexture was called.");
 }
 
-Matrix rlGetMatrixModelview(void)                                   // Get internal modelview matrix 
+// Matrix state management
+//-----------------------------------------------------------------------------------------
+// Get internal modelview matrix
+Matrix rlGetMatrixModelview(void)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixModelview was called.");
-	return rlMatrixIdentity();
+    Matrix matrix = rlMatrixIdentity();
+    matrix = RLVK.State.modelview;
+    return matrix;
 }
 
-Matrix rlGetMatrixProjection(void)                                  // Get internal projection matrix 
+// Get internal projection matrix
+Matrix rlGetMatrixProjection(void)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixProjection was called.");
-	return rlMatrixIdentity();
+    return RLVK.State.projection;
 }
 
-Matrix rlGetMatrixTransform(void)                                   // Get internal accumulated transform matrix 
+// Get internal accumulated transform matrix
+Matrix rlGetMatrixTransform(void)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixTransform was called.");
-	return rlMatrixIdentity();
+    Matrix mat = rlMatrixIdentity();
+    // TODO: Consider possible transform matrices in the RLVK.State.stack
+    //Matrix matStackTransform = rlMatrixIdentity();
+    //for (int i = RLVK.State.stackCounter; i > 0; i--) matStackTransform = rlMatrixMultiply(RLVK.State.stack[i], matStackTransform);
+
+    mat = RLVK.State.transform;
+    return mat;
 }
 
-Matrix rlGetMatrixProjectionStereo(int eye)                         // Get internal projection matrix for stereo render (selected eye) 
+// Get internal projection matrix for stereo render (selected eye)
+Matrix rlGetMatrixProjectionStereo(int eye)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixProjectionStereo was called.");
-	return rlMatrixIdentity();
+    Matrix mat = rlMatrixIdentity();
+    mat = RLVK.State.projectionStereo[eye];
+    return mat;
 }
 
-Matrix rlGetMatrixViewOffsetStereo(int eye)                         // Get internal view offset matrix for stereo render (selected eye) 
+// Get internal view offset matrix for stereo render (selected eye)
+Matrix rlGetMatrixViewOffsetStereo(int eye)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetMatrixViewOffsetStereo was called.");
-	return rlMatrixIdentity();
+    Matrix mat = rlMatrixIdentity();
+    mat = RLVK.State.viewOffsetStereo[eye];
+    return mat;
 }
 
-void rlSetMatrixProjection(Matrix proj)                             // Set a custom projection matrix (replaces internal projection matrix) 
+// Set a custom modelview matrix (replaces internal modelview matrix)
+void rlSetMatrixModelview(Matrix view)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixProjection was called.");
+    RLVK.State.modelview = view;
 }
 
-void rlSetMatrixModelview(Matrix view)                              // Set a custom modelview matrix (replaces internal modelview matrix) 
+// Set a custom projection matrix (replaces internal projection matrix)
+void rlSetMatrixProjection(Matrix projection)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixModelview was called.");
+    RLVK.State.projection = projection;
 }
 
-void rlSetMatrixProjectionStereo(Matrix right, Matrix left)         // Set eyes projection matrices for stereo rendering 
+// Set eyes projection matrices for stereo rendering
+void rlSetMatrixProjectionStereo(Matrix right, Matrix left)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixProjectionStereo was called.");
+    RLVK.State.projectionStereo[0] = right;
+    RLVK.State.projectionStereo[1] = left;
 }
 
-void rlSetMatrixViewOffsetStereo(Matrix right, Matrix left)         // Set eyes view offsets matrices for stereo rendering 
+// Set eyes view offsets matrices for stereo rendering
+void rlSetMatrixViewOffsetStereo(Matrix right, Matrix left)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetMatrixViewOffsetStereo was called.");
+    RLVK.State.viewOffsetStereo[0] = right;
+    RLVK.State.viewOffsetStereo[1] = left;
 }
 
 void rlLoadDrawCube(void)      // Load and draw a cube 

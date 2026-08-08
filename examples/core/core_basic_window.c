@@ -108,7 +108,7 @@ int main(void)
         {
             .name = "borderThickness",
             .size = sizeof(float)
-        },
+        }
     };
 
     // Load the shader
