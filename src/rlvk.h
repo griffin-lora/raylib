@@ -1501,11 +1501,11 @@ void rlOrtho(double left, double right, double bottom, double top, double znear,
     matOrtho.m7 = 0.0f;
     matOrtho.m8 = 0.0f;
     matOrtho.m9 = 0.0f;
-    matOrtho.m10 = -2.0f/fn;
+    matOrtho.m10 = -1.0f/fn;
     matOrtho.m11 = 0.0f;
     matOrtho.m12 = -((float)left + (float)right)/rl;
     matOrtho.m13 = -((float)top + (float)bottom)/tb;
-    matOrtho.m14 = -((float)zfar + (float)znear)/fn;
+    matOrtho.m14 = -((float)znear)/fn;
     matOrtho.m15 = 1.0f;
 
     *RLVK.State.currentMatrix = rlMatrixMultiply(*RLVK.State.currentMatrix, matOrtho);
@@ -3358,7 +3358,7 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
 
     batch.bufferCount = numBuffers;    // Record buffer count
     batch.drawCounter = 1;             // Reset draws counter
-    batch.currentDepth = -1.0f;        // Reset depth value
+    batch.currentDepth = -1.0f + (1.0f/20000.0f);        // Reset depth value
     //--------------------------------------------------------------------------------------------
 
     return batch;
@@ -3552,7 +3552,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
     RLVK.State.batchCounter++;
 
     // Reset depth for next draw
-    batch->currentDepth = -1.0f;
+    batch->currentDepth = -1.0f + (1.0f/20000.0f);
 
     // Restore projection/modelview matrices
     RLVK.State.projection = matProjection;
