@@ -14,6 +14,7 @@
 ********************************************************************************************/
 
 #include "raylib.h"
+#include "rlvk.h"
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -27,7 +28,16 @@ int main(void)
 
     InitWindow(screenWidth, screenHeight, "raylib [shapes] example - basic shapes");
 
-    Shader shader = LoadShader(0, "examples/core/resources/fragment.glsl");
+    Vector4 v = { 1.0, 0.0, 0.0, 0.0 };
+
+    ShaderUniform uniform = {
+        .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
+        .size = 4*sizeof(float)
+    };
+    
+    Shader shader = LoadShaderEx(0, "examples/core/resources/fragment.glsl", 1, &uniform);
+    // int locIndex = GetShaderLocation(shader, "colorOffset");
+    // SetShaderValue(shader, locIndex, &v, SHADER_UNIFORM_VEC4);
 
     float rotation = 0.0f;
 

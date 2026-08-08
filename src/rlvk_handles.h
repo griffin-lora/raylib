@@ -28,5 +28,6 @@ typedef struct VmaAllocation_T *rlvkAllocation;
 
 typedef struct rlShaderProgram rlShaderProgram;
 typedef struct rlTexture rlTexture;
+typedef struct rlShaderUniform rlShaderUniform;
 
 #endif // RLVK_HANDLES_H
