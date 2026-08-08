@@ -13,19 +13,17 @@ layout(set = 1, binding = 0) uniform sampler2D texture0;
 // Output fragment color
 layout(location = 0) out vec4 finalColor;
 
-layout(set = 2, binding = 0) uniform Buffer0 { vec4 rectangle; }; // Rectangle dimensions (x, y, width, height)
-layout(set = 2, binding = 1) uniform Buffer1 { vec4 radius; }; // Corner radius (top-left, top-right, bottom-left, bottom-right)
-layout(set = 2, binding = 2) uniform Buffer2 { vec4 color; };
-
-// Shadow parameters
-layout(set = 2, binding = 3) uniform Buffer3 { float shadowRadius; };
-layout(set = 2, binding = 4) uniform Buffer4 { vec2 shadowOffset; };
-layout(set = 2, binding = 5) uniform Buffer5 { float shadowScale; };
-layout(set = 2, binding = 6) uniform Buffer6 { vec4 shadowColor; };
-
-// Border parameters
-layout(set = 2, binding = 7) uniform Buffer7 { float borderThickness; };
-layout(set = 2, binding = 8) uniform Buffer8 { vec4 borderColor; };
+layout(set = 2, binding = 0) uniform Buffer {
+    vec4 rectangle;
+    vec4 radius;
+    vec4 color;
+    vec4 shadowColor;
+    vec4 borderColor;
+    vec2 shadowOffset;
+    float shadowRadius;
+    float shadowScale;
+    float borderThickness;
+};
 
 // Create a rounded rectangle using signed distance field
 // Thanks to Iñigo Quilez (https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm)

@@ -75,49 +75,40 @@ int main(void)
     ShaderUniform uniforms[] = {
         {
             .name = "rectangle",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
             .size = 4*sizeof(float)
         },
         {
             .name = "radius",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
             .size = 4*sizeof(float)
         },
         {
             .name = "color",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
             .size = 4*sizeof(float)
-        },
-        {
-            .name = "shadowRadius",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
-            .size = sizeof(float)
-        },
-        {
-            .name = "shadowOffset",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
-            .size = 2*sizeof(float)
-        },
-        {
-            .name = "shadowScale",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
-            .size = sizeof(float)
         },
         {
             .name = "shadowColor",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
             .size = 4*sizeof(float)
-        },
-        {
-            .name = "borderThickness",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
-            .size = sizeof(float)
         },
         {
             .name = "borderColor",
-            .stageFlags = RL_SHADER_STAGE_FRAGMENT_BIT,
             .size = 4*sizeof(float)
-        }
+        },
+        {
+            .name = "shadowOffset",
+            .size = 2*sizeof(float)
+        },
+        {
+            .name = "shadowRadius",
+            .size = sizeof(float)
+        },
+        {
+            .name = "shadowScale",
+            .size = sizeof(float)
+        },
+        {
+            .name = "borderThickness",
+            .size = sizeof(float)
+        },
     };
 
     // Load the shader

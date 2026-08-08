@@ -363,15 +363,16 @@ typedef struct rlShaderProgram {
     rlvkPipeline pipeline;
     rlvkPipelineLayout pipelineLayout;
     rlvkDescriptorSet descriptorSet;
-    uint32_t *descriptorSizes;
+    uint32_t descriptorSize;
     uint32_t uniformCount;
 
-    void **mappedUniformBuffers;
+    void *mappedUniformBuffer;
     rlvkDescriptorPool descriptorPool;
     rlvkDescriptorSetLayout descriptorSetLayout;
-    char **uniformNames;
-    rlvkBuffer *uniformBuffers;
-    rlvkAllocation *uniformAllocations;
+    char **structNames;
+    uint32_t *structOffsets;
+    rlvkBuffer uniformBuffer;
+    rlvkAllocation uniformAllocation;
 } rlShaderProgram;
 
 // OpenGL version
@@ -547,15 +548,8 @@ typedef enum {
     RL_CULL_FACE_BACK
 } rlCullMode;
 
-// Corresponds with Vulkan shader stage flags
-typedef enum {
-    RL_SHADER_STAGE_VERTEX_BIT = 0x00000001,
-    RL_SHADER_STAGE_FRAGMENT_BIT = 0x00000010
-} rlShaderStageFlags;
-
 typedef struct rlShaderUniform {
     const char *name;
-    uint32_t stageFlags;
     uint32_t size;
 } rlShaderUniform;
 
@@ -2706,30 +2700,6 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
             .binding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-        },
-        {
-            .descriptorCount = 1,
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-        },
-        {
-            .descriptorCount = 1,
-            .binding = 2,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-        },
-        {
-            .descriptorCount = 1,
-            .binding = 3,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-        },
-        {
-            .descriptorCount = 1,
-            .binding = 4,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
         }
     };
 
@@ -3388,17 +3358,11 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             // Bind shader program custom uniform buffer descriptors (if it has any)
             if (program->uniformCount > 0)
             {
-
-                uint32_t *descriptorOffsets2 = (uint32_t *)RL_CALLOC(program->uniformCount, sizeof(uint32_t));
-
-                for (uint32_t i = 0; i < program->uniformCount; i++)
-                {
-                    descriptorOffsets2[i] = program->descriptorSizes[i]*RLVK.State.batchCounter;
-                }
+                uint32_t descriptorOffsets2[] = {
+                    program->descriptorSize*RLVK.State.batchCounter
+                };
                 
-                vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, program->pipelineLayout, 2, 1, &program->descriptorSet, program->uniformCount, descriptorOffsets2);
-
-                RL_FREE(descriptorOffsets2);
+                vkCmdBindDescriptorSets(RLVK.renderCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, program->pipelineLayout, 2, 1, &program->descriptorSet, 1, descriptorOffsets2);
             }
 
             VkDeviceSize offsets[4] = { 0 };
@@ -4186,51 +4150,40 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
     // Create shader-specific descriptor sets and layouts
     if (uniformCount > 0)
     {
-        program.uniformNames = (char **)RL_CALLOC(uniformCount, sizeof(char *));
+        program.structNames = (char **)RL_CALLOC(uniformCount, sizeof(char *));
+        program.structOffsets = (uint32_t *)RL_CALLOC(uniformCount, sizeof(uint32_t *));
 
         for (uint32_t i = 0; i < uniformCount; i++)
         {
             char *name = (char *)RL_CALLOC(strlen(uniforms[i].name) + 1, sizeof(char));
             strcpy(name, uniforms[i].name);
 
-            program.uniformNames[i] = name;
+            program.structNames[i] = name;
         }
 
-        program.descriptorSizes = (uint32_t *)RL_CALLOC(uniformCount, sizeof(uint32_t *));
-        for (uint32_t i = 0; i < uniformCount; i++)
+        for (uint32_t i = 0; i < uniformCount; i++) {
+            program.structOffsets[i] = program.descriptorSize;
+            program.descriptorSize += uniforms[i].size;
+        }
+        program.descriptorSize = rlAlign(program.descriptorSize, 64/* RLVK.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment */);
+
+        VkDescriptorSetLayoutBinding descriptorSetBinding =
         {
-            program.descriptorSizes[i] = rlAlign(uniforms[i].size, RLVK.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment);
-        }
-
-        VkDescriptorSetLayoutBinding *descriptorSetBindings = (VkDescriptorSetLayoutBinding *)RL_CALLOC(uniformCount, sizeof(VkDescriptorSetLayoutBinding));
-
-        for (uint32_t i = 0; i < uniformCount; i++)
-        {
-            descriptorSetBindings[i] = (VkDescriptorSetLayoutBinding) {
-                .descriptorCount = 1,
-                .binding = i,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                .stageFlags = uniforms[i].stageFlags
-            };
-        }
-
-        VkDescriptorPoolSize poolSizes[] = {
-            {
-                .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                .descriptorCount = uniformCount
-            },
+            .descriptorCount = 1,
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS
         };
 
-        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = uniformCount,
-            .pBindings = descriptorSetBindings
+        VkDescriptorPoolSize poolSize = {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1
         };
 
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .poolSizeCount = 1,
-            .pPoolSizes = poolSizes,
+            .pPoolSizes = &poolSize,
             .maxSets = 1
         };
 
@@ -4240,13 +4193,18 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
             return program;
         }
 
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = 1,
+            .pBindings = &descriptorSetBinding
+        };
+
         if (vkCreateDescriptorSetLayout(RLVK.device, &descriptorSetLayoutCreateInfo, 0, &program.descriptorSetLayout) != VK_SUCCESS)
         {
             TRACELOG(LOG_WARNING, "Vulkan: Failed to create descriptor set layout");
             return program;
         }
 
-        
         VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = program.descriptorPool,
@@ -4259,53 +4217,36 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
             return program;
         }
 
-        VkDescriptorBufferInfo *uniformBufferInfos = (VkDescriptorBufferInfo *)RL_CALLOC(uniformCount, sizeof(VkDescriptorBufferInfo));
-        VkWriteDescriptorSet *uniformWrites = (VkWriteDescriptorSet *)RL_CALLOC(uniformCount, sizeof(VkWriteDescriptorSet));
-
-        program.uniformBuffers = (VkBuffer *)RL_CALLOC(uniformCount, sizeof(VkBuffer));
-        program.uniformAllocations = (VmaAllocation *)RL_CALLOC(uniformCount, sizeof(VmaAllocation));
-        program.mappedUniformBuffers = (void **)RL_CALLOC(uniformCount, sizeof(void *));
-
         VkBufferCreateInfo uniformBufferCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            .size = RL_DEFAULT_BATCH_COUNT_PER_FRAME*program.descriptorSize
+        };
+
+        if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffer, &program.uniformAllocation, NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+            return program;
+        }
+        vmaMapMemory(RLVK.allocator, program.uniformAllocation, &program.mappedUniformBuffer);
+
+        VkDescriptorBufferInfo uniformBufferInfo = {
+            .buffer = program.uniformBuffer,
+            .range = program.descriptorSize
         };
 
         VkWriteDescriptorSet uniformWrite = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = program.descriptorSet,
             .dstArrayElement = 0,
+            .dstBinding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount = 1
+            .descriptorCount = 1,
+            .pBufferInfo = &uniformBufferInfo
         };
 
-        for (uint32_t i = 0; i < uniformCount; i++)
-        {
-            uniformBufferCreateInfo.size = RL_DEFAULT_BATCH_COUNT_PER_FRAME*program.descriptorSizes[i];
-
-            if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffers[i], &program.uniformAllocations[i], NULL) != VK_SUCCESS)
-            {
-                TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
-                return program;
-            }
-            vmaMapMemory(RLVK.allocator, program.uniformAllocations[i], &program.mappedUniformBuffers[i]);
-
-            uniformBufferInfos[i] = (VkDescriptorBufferInfo) {
-                .buffer = program.uniformBuffers[i],
-                .range = uniforms[i].size
-            };
-
-            uniformWrites[i] = uniformWrite;
-            uniformWrites[i].dstBinding = i;
-            uniformWrites[i].pBufferInfo = &uniformBufferInfos[i];
-        }
-
-        vkUpdateDescriptorSets(RLVK.device, uniformCount, uniformWrites, 0, NULL);
-
-        RL_FREE(descriptorSetBindings);
-        RL_FREE(uniformBufferInfos);
-        RL_FREE(uniformWrites);
+        vkUpdateDescriptorSets(RLVK.device, 1, &uniformWrite, 0, NULL);
 
         VkDescriptorSetLayout layouts[3] = { RLVK.bufferDescriptorSetLayout, RLVK.textureDescriptorSetLayout, program.descriptorSetLayout };
 
@@ -4539,16 +4480,13 @@ void rlUnloadShaderProgram(const rlShaderProgram *program)                      
 {
     for (uint32_t i = 0; i < program->uniformCount; i++)
     {
-        RL_FREE(program->uniformNames[i]);
-        vmaUnmapMemory(RLVK.allocator, program->uniformAllocations[i]);
-        vmaDestroyBuffer(RLVK.allocator, program->uniformBuffers[i], program->uniformAllocations[i]);
+        RL_FREE(program->structNames[i]);
     }
+    vmaUnmapMemory(RLVK.allocator, program->uniformAllocation);
+    vmaDestroyBuffer(RLVK.allocator, program->uniformBuffer, program->uniformAllocation);
 
-    RL_FREE(program->uniformNames);
-    RL_FREE(program->descriptorSizes);
-    RL_FREE(program->uniformBuffers);
-    RL_FREE(program->uniformAllocations);
-    RL_FREE(program->mappedUniformBuffers);
+    RL_FREE(program->structOffsets);
+    RL_FREE(program->structNames);
     
     vkDestroyPipeline(RLVK.device, program->pipeline, NULL);
     vkDestroyPipelineLayout(RLVK.device, program->pipelineLayout, 0);
@@ -4560,7 +4498,7 @@ int rlGetLocationUniform(const rlShaderProgram *program, const char *uniformName
 {
     for (uint32_t i = 0; i < program->uniformCount; i++)
     {
-        if (strcmp(uniformName, program->uniformNames[i]) == 0)
+        if (strcmp(uniformName, program->structNames[i]) == 0)
         {
             return i;
         }
@@ -4598,8 +4536,9 @@ void rlSetUniform(int locIndex, const void *value, int uniformType, int count)  
 {
     uint32_t valueSize = rlGetUniformValueSize(uniformType);
 
-    char *buf = RLVK.State.descriptorManagingCurrentBoundShaderProgram->mappedUniformBuffers[locIndex];
-    buf += valueSize*RLVK.State.batchCounter;
+    char *buf = RLVK.State.descriptorManagingCurrentBoundShaderProgram->mappedUniformBuffer;
+    buf += RLVK.State.descriptorManagingCurrentBoundShaderProgram->descriptorSize*RLVK.State.batchCounter;
+    buf += RLVK.State.descriptorManagingCurrentBoundShaderProgram->structOffsets[locIndex];
     memcpy(buf, value, rlGetUniformValueSize(uniformType));
 }
 
