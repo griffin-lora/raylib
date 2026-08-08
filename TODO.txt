@@ -1,5 +1,4 @@
 Refactor at some point (largely the 3 different buffer copying systems, that's pretty bad)
-Use vk-bootstrap
 Add auxilliary textures
 Support rmodels
 Implement functions like IsShaderValid correctly
@@ -9,3 +8,4 @@ Implement error handling with gotos
 Use single descriptor pool for all shader programs
 Support compute shaders
 Support SSBOs
+Support resizing window

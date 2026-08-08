@@ -873,6 +873,11 @@ typedef struct rlvkData {
     uint32_t swapChainImageCount;
     VkImage* swapChainImages;
     VkImageView* swapChainImageViews;
+    VkImage depthImage;
+    VmaAllocation depthImageAllocation;
+    VkImageView depthImageView;
+    VkFormat depthImageFormat;
+
     shaderc_compiler_t shaderCompiler;
     VmaAllocator allocator;
     VkRenderPass renderPass;
@@ -1181,7 +1186,11 @@ void rlBeginFrame(void)
         return;
     }
     
-    VkClearValue clearValue = { .color = { 0, 0, 0, 0 } };
+    VkClearValue clearValues[] =
+    {
+        { .color = { 0, 0, 0, 0 } },
+        { .depthStencil = { .depth = 1.0f, .stencil = 0 } }
+    };
 
     VkRenderPassBeginInfo renderPassInfo =
     {
@@ -1190,8 +1199,8 @@ void rlBeginFrame(void)
         .framebuffer = RLVK.swapChainFramebuffers[RLVK.imageIndex],
         .renderArea.offset = { 0, 0 },
         .renderArea.extent = RLVK.swapChainExtent,
-        .clearValueCount = 1,
-        .pClearValues = &clearValue
+        .clearValueCount = 2,
+        .pClearValues = clearValues
     };
 
     vkCmdBeginRenderPass(RLVK.renderCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -2013,6 +2022,29 @@ void rlSetBlendFactorsSeparate(int glSrcRGB, int glDstRGB, int glSrcAlpha, int g
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetBlendFactorsSeparate was called.");
 }
 
+static VkFormat rlGetSupportedFormat(VkPhysicalDevice physicalDevice, int formatCount, const VkFormat *formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
+{
+    for (int i = 0; i < formatCount; i++)
+    {
+        VkFormat format = formats[i];
+
+        VkFormatProperties properties;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (properties.linearTilingFeatures & featureFlags) == featureFlags)
+        {
+            return format;
+        }
+
+        if (tiling == VK_IMAGE_TILING_OPTIMAL && (properties.optimalTilingFeatures & featureFlags) == featureFlags)
+        {
+            return format;
+        }
+    }
+
+    return VK_FORMAT_MAX_ENUM;
+}
+
 void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // Initialize rlvk (instance, device, surface, swapchain, etc.) 
 {
     VkApplicationInfo appInfo = 
@@ -2570,16 +2602,81 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         return;
     }
 
-    VkAttachmentDescription colorAttachment =
-    {
-        .format = swapChainImageFormat,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+    VkFormat depthImageFormats[] = { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT };
+
+    RLVK.depthImageFormat = rlGetSupportedFormat(physicalDevice, 3, depthImageFormats, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    if (RLVK.depthImageFormat == VK_FORMAT_MAX_ENUM) {
+        TRACELOG(LOG_WARNING, "Vulkan: Desired depth format unavailable");
+        return;
+    }
+
+    VkImageCreateInfo depthImageInfo
+    = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .extent.width = RLVK.swapChainExtent.width,
+        .extent.height = RLVK.swapChainExtent.height,
+        .extent.depth = 1,
+        .format = RLVK.depthImageFormat,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+    };
+
+    if (vmaCreateImage(RLVK.allocator, &depthImageInfo, &deviceAllocationCreateInfo, &RLVK.depthImage, &RLVK.depthImageAllocation, NULL) != VK_SUCCESS)
+    {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create depth image");
+        return;
+    }
+
+    VkImageViewCreateInfo depthImageViewInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .subresourceRange.baseMipLevel = 0,
+        .subresourceRange.levelCount = 1,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount = 1,
+        .subresourceRange.aspectMask = (RLVK.depthImageFormat == VK_FORMAT_D32_SFLOAT_S8_UINT || RLVK.depthImageFormat == VK_FORMAT_D24_UNORM_S8_UINT) ? VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT : VK_IMAGE_ASPECT_DEPTH_BIT,
+        .image = RLVK.depthImage,
+        .format = RLVK.depthImageFormat,
+    };
+    
+    if (vkCreateImageView(RLVK.device, &depthImageViewInfo, NULL, &RLVK.depthImageView) != VK_SUCCESS) {
+        TRACELOG(LOG_WARNING, "Vulkan: Failed to create depth image view");
+        return;
+    }
+
+    VkAttachmentDescription attachments[] =
+    {
+        { // Color attachment
+            .format = swapChainImageFormat,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        },
+        { // Depth attachment
+            .format = RLVK.depthImageFormat,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        }
     };
 
     VkAttachmentReference colorAttachmentRef =
@@ -2588,28 +2685,35 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     };
 
+    VkAttachmentReference depthAttachmentRef =
+    {
+        .attachment = 1,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    };
+
     VkSubpassDescription subpass =
     {
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &colorAttachmentRef
+        .pColorAttachments = &colorAttachmentRef,
+        .pDepthStencilAttachment = &depthAttachmentRef
     };
 
     VkSubpassDependency dependency =
     {
         .srcSubpass = VK_SUBPASS_EXTERNAL,
         .dstSubpass = 0,
-        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
         .srcAccessMask = 0,
-        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
     };
 
     VkRenderPassCreateInfo renderPassInfo =
     {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 1,
-        .pAttachments = &colorAttachment,
+        .attachmentCount = 2,
+        .pAttachments = attachments,
         .subpassCount = 1,
         .pSubpasses = &subpass,
         .dependencyCount = 1,
@@ -2803,14 +2907,15 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     {
         VkImageView attachments[] =
         {
-            RLVK.swapChainImageViews[i]
+            RLVK.swapChainImageViews[i],
+            RLVK.depthImageView
         };
 
         VkFramebufferCreateInfo framebufferInfo =
         {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass = RLVK.renderPass,
-            .attachmentCount = 1,
+            .attachmentCount = 2,
             .pAttachments = attachments,
             .width = RLVK.swapChainExtent.width,
             .height = RLVK.swapChainExtent.height,
@@ -2928,6 +3033,9 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
     }
     
     RL_FREE(RLVK.swapChainFramebuffers);
+
+    vkDestroyImageView(RLVK.device, RLVK.depthImageView, NULL);
+    vmaDestroyImage(RLVK.allocator, RLVK.depthImage, RLVK.depthImageAllocation);
 
     rlUnloadTexture(&RLVK.State.defaultTexture);
 
@@ -4451,6 +4559,16 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
         .blendConstants[3] = 0.0f, //Optional
     };
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE
+    };
+
     VkGraphicsPipelineCreateInfo pipelineInfo =
     {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -4461,7 +4579,7 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
         .pViewportState = &viewportState,
         .pRasterizationState = &rasterizer,
         .pMultisampleState = &multisampling,
-        .pDepthStencilState = 0, //Optional
+        .pDepthStencilState = &depthStencil, //Optional
         .pColorBlendState = &colorBlending,
         .pDynamicState = &dynamicState,
         .layout = program.pipelineLayout,
