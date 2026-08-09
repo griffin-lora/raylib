@@ -1,6 +1,10 @@
 # Adding compile definitions
 target_compile_definitions("raylib" PUBLIC "${PLATFORM_CPP}")
 target_compile_definitions("raylib" PUBLIC "${GRAPHICS}")
+if (VULKAN_EXCLUSIVE)
+    message(STATUS "Compiling Vulkan exclusive mode")
+    target_compile_definitions("raylib" PUBLIC "VULKAN_EXCLUSIVE")
+endif ()
 
 function(define_if target variable)
     if(${${variable}})
