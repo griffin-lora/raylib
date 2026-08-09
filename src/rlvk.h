@@ -335,10 +335,7 @@ typedef struct rlVertexBuffer {
     float *normals;             // Vertex normal (XYZ - 3 components per vertex) (shader-location = 2)
     uint8_t *colors;      // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
 
-    rlvkBuffer stagingBuffers[4];
-    rlvkAllocation stagingAllocations[4];
-    rlvkBuffer deviceBuffers[4];
-    rlvkAllocation deviceAllocations[4];
+    rlBuffer buffers[4];
 } rlVertexBuffer;
 
 // Draw call type
@@ -1229,57 +1226,22 @@ static void rlUpdateBatchBuffers(rlRenderBatch *batch)
     // NOTE: Vertex buffer offsets are precisely the amount of vertices in said buffer
     for (uint32_t i = 0; i < batch->bufferCount; i++)
     {
-        const rlVertexBuffer *vb = &batch->vertexBuffer[i];
-
-        void* mappedData;
-        VkBufferCopy bufferCopy = { 0 };
+        rlVertexBuffer *vb = &batch->vertexBuffer[i];
 
         // Vertex positions buffer
-        bufferCopy.size = vb->vertexOffset*3*sizeof(float);
-        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[0], &mappedData) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
-            return;
-        }
-        memcpy(mappedData, vb->vertices, bufferCopy.size);
-        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[0]);
-        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[0], vb->deviceBuffers[0], 1, &bufferCopy);
+        memcpy(vb->buffers[0].mappedData, vb->vertices, vb->vertexOffset*3*sizeof(float));
 
         // Texture coordinates buffer
-        bufferCopy.size = vb->vertexOffset*2*sizeof(float);
-        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[1], &mappedData) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
-            return;
-        }
-        memcpy(mappedData, vb->texcoords, bufferCopy.size);
-        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[1]);
-        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[1], vb->deviceBuffers[1], 1, &bufferCopy);
+        memcpy(vb->buffers[1].mappedData, vb->texcoords, vb->vertexOffset*2*sizeof(float));
 
         // Normals buffer
-        bufferCopy.size = vb->vertexOffset*3*sizeof(float);
-        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[2], &mappedData) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
-            return;
-        }
-        memcpy(mappedData, vb->normals, bufferCopy.size);
-        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[2]);
-        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[2], vb->deviceBuffers[2], 1, &bufferCopy);
+        memcpy(vb->buffers[2].mappedData, vb->normals, vb->vertexOffset*3*sizeof(float));
 
         // Colors buffer
-        bufferCopy.size = vb->vertexOffset*4*sizeof(uint8_t);
-        if (vmaMapMemory(RLVK.allocator, vb->stagingAllocations[3], &mappedData) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
-            return;
-        }
-        memcpy(mappedData, vb->colors, bufferCopy.size);
-        vmaUnmapMemory(RLVK.allocator, vb->stagingAllocations[3]);
-        vkCmdCopyBuffer(RLVK.transferCommandBuffer, vb->stagingBuffers[3], vb->deviceBuffers[3], 1, &bufferCopy);
+        memcpy(vb->buffers[3].mappedData, vb->colors, vb->vertexOffset*4*sizeof(uint8_t));
 
         // Since we have uploaded the vertex buffer data, reset the vertex buffer offset.
-        batch->vertexBuffer[i].vertexOffset = 0;
+        vb->vertexOffset = 0;
     }
 }
 
@@ -1532,7 +1494,8 @@ void rlViewport(int x, int y, int width, int height)  // Set the viewport area
     RLVK.State.viewport.width = width;
     RLVK.State.viewport.height = height;
 
-    vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.State.viewport);
+    // TODO: For now
+    // vkCmdSetViewport(RLVK.renderCommandBuffer, 0, 1, &RLVK.State.viewport);
 }
 
 // Set clip planes distances
@@ -3358,64 +3321,16 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
         rlVertexBuffer *vb = &batch.vertexBuffer[i];
 
         // Vertex position buffer (shader-location = 0)
-        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*3*4*sizeof(float);
-
-        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &vb->stagingBuffers[0], &vb->stagingAllocations[0], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
-            return batch;
-        }
-        
-        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[0], &vb->deviceAllocations[0], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
-            return batch;
-        }
+        vb->buffers[0] = rlLoadVertexBuffer(NULL, bufferElements*3*4*sizeof(float), true);
 
         // Vertex texcoord buffer (shader-location = 1)
-        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*2*4*sizeof(float);
-
-        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &vb->stagingBuffers[1], &vb->stagingAllocations[1], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
-            return batch;
-        }
-        
-        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[1], &vb->deviceAllocations[1], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
-            return batch;
-        }
+        vb->buffers[1] = rlLoadVertexBuffer(NULL, bufferElements*2*4*sizeof(float), true);
 
         // Vertex normal buffer (shader-location = 2)
-        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*3*4*sizeof(float);
-
-        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &vb->stagingBuffers[2], &vb->stagingAllocations[2], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
-            return batch;
-        }
-        
-        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[2], &vb->deviceAllocations[2], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
-            return batch;
-        }
+        vb->buffers[2] = rlLoadVertexBuffer(NULL, bufferElements*3*4*sizeof(float), true);
 
         // Vertex color buffer (shader-location = 3)
-        stagingBufferCreateInfo.size = deviceBufferCreateInfo.size = bufferElements*4*4*sizeof(float);
-
-        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &vb->stagingBuffers[3], &vb->stagingAllocations[3], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
-            return batch;
-        }
-        
-        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &vb->deviceBuffers[3], &vb->deviceAllocations[3], NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
-            return batch;
-        }
+        vb->buffers[3] = rlLoadVertexBuffer(NULL, bufferElements*4*4*sizeof(uint8_t), true);
     }
 
     TRACELOG(RL_LOG_INFO, "RLVK: Render batch vertex buffers loaded successfully in VRAM (GPU)");
@@ -3453,14 +3368,10 @@ void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system
     {
         rlVertexBuffer *vb = &batch.vertexBuffer[i];
         // Delete VBOs from GPU (VRAM)
-        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[0], vb->stagingAllocations[0]);
-        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[0], vb->deviceAllocations[0]);
-        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[1], vb->stagingAllocations[1]);
-        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[1], vb->deviceAllocations[1]);
-        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[2], vb->stagingAllocations[2]);
-        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[2], vb->deviceAllocations[2]);
-        vmaDestroyBuffer(RLVK.allocator, vb->stagingBuffers[3], vb->stagingAllocations[3]);
-        vmaDestroyBuffer(RLVK.allocator, vb->deviceBuffers[3], vb->deviceAllocations[3]);
+        rlUnloadVertexBuffer(&vb->buffers[0]);
+        rlUnloadVertexBuffer(&vb->buffers[1]);
+        rlUnloadVertexBuffer(&vb->buffers[2]);
+        rlUnloadVertexBuffer(&vb->buffers[3]);
 
         // Free vertex arrays memory from CPU (RAM)
         RL_FREE(batch.vertexBuffer[i].vertices);
@@ -3564,9 +3475,10 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             }
 
             VkDeviceSize offsets[4] = { 0 };
+            VkBuffer buffers[4] = { vb->buffers[0].buffer, vb->buffers[1].buffer, vb->buffers[2].buffer, vb->buffers[3].buffer };
 
             // Bind all vertex buffers (all in one command!)
-            vkCmdBindVertexBuffers(RLVK.renderCommandBuffer, 0, 4, vb->deviceBuffers, offsets);
+            vkCmdBindVertexBuffers(RLVK.renderCommandBuffer, 0, 4, buffers, offsets);
             vkCmdBindIndexBuffer(RLVK.renderCommandBuffer, batch->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16);
 
             // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch->vertexBuffer[batch->currentBuffer].vboId[4]);
