@@ -379,9 +379,7 @@ typedef struct Mesh {
     unsigned int *vboId;    // OpenGL Vertex Buffer Objects id (default vertex data)
 } Mesh;
 
-#ifdef VULKAN_EXCLUSIVE
-    typedef rlShaderUniform ShaderUniform;
-#endif
+typedef struct rlShaderUniform ShaderUniform;
 
 // Shader
 typedef struct Shader {
@@ -1086,10 +1084,8 @@ RLAPI void UnloadVrStereoConfig(VrStereoConfig config);           // Unload VR s
 // NOTE: Shader functionality is not available on OpenGL 1.1
 RLAPI Shader LoadShader(const char *vsFileName, const char *fsFileName);   // Load shader from files and bind default locations
 RLAPI Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode); // Load shader from code strings and bind default locations
-#ifdef VULKAN_EXCLUSIVE
 RLAPI Shader LoadShaderVk(const char *vsFileName, const char *fsFileName, unsigned int uniformCount, const ShaderUniform *uniforms);   // Load shader from files and bind default locations
 RLAPI Shader LoadShaderFromMemoryVk(const char *vsCode, const char *fsCode, unsigned int uniformCount, const ShaderUniform *uniforms); // Load shader from code strings and bind default locations
-#endif
 RLAPI bool IsShaderValid(Shader shader);                                   // Check if shader is valid (loaded on GPU)
 RLAPI int GetShaderLocation(Shader shader, const char *uniformName);       // Get shader uniform location
 RLAPI int GetShaderLocationAttrib(Shader shader, const char *attribName);  // Get shader attribute location

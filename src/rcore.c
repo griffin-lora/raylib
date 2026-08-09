@@ -1352,7 +1352,6 @@ Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode)
     return shader;
 }
 
-#ifdef VULKAN_EXCLUSIVE
 // Load shader from files and bind default locations
 // NOTE: If shader filename is NULL, using default vertex/fragment shaders
 Shader LoadShaderVk(const char *vsFileName, const char *fsFileName, unsigned int uniformCount, const ShaderUniform *uniforms)
@@ -1380,8 +1379,14 @@ Shader LoadShaderFromMemoryVk(const char *vsCode, const char *fsCode, unsigned i
 {
     Shader shader = { 0 };
 
+#ifdef VULKAN_EXCLUSIVE
     shader.id = RL_MALLOC(sizeof(rlShaderProgram));
     *shader.id = rlLoadShaderProgramVk(vsCode, fsCode, uniformCount, uniforms);
+#else
+    rlShaderProgram *p = (rlShaderProgram *)RL_MALLOC(sizeof(rlShaderProgram));
+    *p = rlLoadShaderProgramVk(vsCode, fsCode, uniformCount, uniforms);
+    shader.id = rlAcquireId(p);
+#endif
 
     if (shader.id == 0)
     {
@@ -1439,7 +1444,6 @@ Shader LoadShaderFromMemoryVk(const char *vsCode, const char *fsCode, unsigned i
 
     return shader;
 }
-#endif
 
 // Check if shader is valid (loaded on GPU)
 bool IsShaderValid(Shader shader)
