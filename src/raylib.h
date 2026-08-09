@@ -84,12 +84,6 @@
 #ifndef RAYLIB_H
 #define RAYLIB_H
 
-#ifdef PLATFORM_DESKTOP_VULKAN
-    #define USING_RLVK
-#else
-    #define USING_RLGL
-#endif
-
 #include <stdarg.h>     // Required for: va_list - Only used by TraceLogCallback
 
 #define RAYLIB_VERSION_MAJOR 6
@@ -163,7 +157,7 @@
     #error "C++11 or later is required. Add -std=c++11"
 #endif
 
-#ifdef USING_RLVK
+#ifdef VULKAN_EXCLUSIVE
     #include "rlvk_handles.h"
 #endif
 
@@ -281,7 +275,7 @@ typedef struct Image {
 
 // Texture, tex data stored in GPU memory (VRAM)
 typedef struct Texture {
-#ifndef USING_RLVK
+#ifndef VULKAN_EXCLUSIVE
     unsigned int id;        // OpenGL texture id
 #else
     rlTexture *id;        // rlvk texture handle
@@ -385,13 +379,13 @@ typedef struct Mesh {
     unsigned int *vboId;    // OpenGL Vertex Buffer Objects id (default vertex data)
 } Mesh;
 
-#ifdef USING_RLVK
+#ifdef VULKAN_EXCLUSIVE
     typedef rlShaderUniform ShaderUniform;
 #endif
 
 // Shader
 typedef struct Shader {
-#ifndef USING_RLVK
+#ifndef VULKAN_EXCLUSIVE
     unsigned int id;        // Shader program id
 #else
     rlShaderProgram *id;
@@ -1092,9 +1086,9 @@ RLAPI void UnloadVrStereoConfig(VrStereoConfig config);           // Unload VR s
 // NOTE: Shader functionality is not available on OpenGL 1.1
 RLAPI Shader LoadShader(const char *vsFileName, const char *fsFileName);   // Load shader from files and bind default locations
 RLAPI Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode); // Load shader from code strings and bind default locations
-#ifdef USING_RLVK
-RLAPI Shader LoadShaderEx(const char *vsFileName, const char *fsFileName, unsigned int uniformCount, const ShaderUniform *uniforms);   // Load shader from files and bind default locations
-RLAPI Shader LoadShaderFromMemoryEx(const char *vsCode, const char *fsCode, unsigned int uniformCount, const ShaderUniform *uniforms); // Load shader from code strings and bind default locations
+#ifdef VULKAN_EXCLUSIVE
+RLAPI Shader LoadShaderVk(const char *vsFileName, const char *fsFileName, unsigned int uniformCount, const ShaderUniform *uniforms);   // Load shader from files and bind default locations
+RLAPI Shader LoadShaderFromMemoryVk(const char *vsCode, const char *fsCode, unsigned int uniformCount, const ShaderUniform *uniforms); // Load shader from code strings and bind default locations
 #endif
 RLAPI bool IsShaderValid(Shader shader);                                   // Check if shader is valid (loaded on GPU)
 RLAPI int GetShaderLocation(Shader shader, const char *uniformName);       // Get shader uniform location

@@ -50,11 +50,7 @@
 
 #if SUPPORT_MODULE_RSHAPES
 
-#ifdef USING_RLGL
-    #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
-#else
-    #include "rlvk.h"
-#endif
+#include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 
 #include <math.h>       // Required for: sinf(), asinf(), cosf(), acosf(), sqrtf(), fabsf()
 #include <float.h>      // Required for: FLT_EPSILON
@@ -80,10 +76,14 @@
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-#ifdef USING_RLGL
+#ifndef VULKAN_EXCLUSIVE
+#ifndef PLATFORM_DESKTOP_VULKAN
     static Texture2D texShapes = { 1, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
 #else
-    static Texture2D texShapes = { NULL, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
+    static Texture2D texShapes = { -1u, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlvk)
+#endif
+#else
+    static Texture2D texShapes = { NULL, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlvk)
 #endif
 static Rectangle texShapesRec = { 0.0f, 0.0f, 1.0f, 1.0f };    // Texture source rectangle used on shapes drawing
 
@@ -105,11 +105,15 @@ void SetShapesTexture(Texture2D texture, Rectangle rec)
     // it can break the rendering of all shapes if misused
     if ((texture.id == 0) || (rec.width == 0) || (rec.height == 0))
     {
-        #ifdef USING_RLGL
-            texShapes = (Texture2D){ 1, 1, 1, 1, 7 };
-        #else
-            texShapes = (Texture2D){ NULL, 1, 1, 1, 7 };
-        #endif
+    #ifndef VULKAN_EXCLUSIVE
+    #ifndef PLATFORM_DESKTOP_VULKAN
+        texShapes = (Texture2D){ 1, 1, 1, 1, 7 };
+    #else
+        texShapes = (Texture2D){ -1u, 1, 1, 1, 7 };
+    #endif
+    #else
+        texShapes = (Texture2D){ NULL, 1, 1, 1, 7 };
+    #endif
         texShapesRec = (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f };
     }
     else

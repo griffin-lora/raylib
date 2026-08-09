@@ -107,14 +107,6 @@
 *
 **********************************************************************************************/
 
-#ifndef USING_RLGL
-    #error "raylib.h must be included before rlgl.h"
-#endif
-
-#ifdef USING_RLVK
-    #error "Cannot include rlgl.h when using RLVK"
-#endif
-
 #ifndef RLGL_H
 #define RLGL_H
 

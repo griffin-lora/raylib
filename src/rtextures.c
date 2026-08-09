@@ -64,7 +64,7 @@
 
 #if SUPPORT_MODULE_RTEXTURES
 
-#ifdef USING_RLGL
+#ifndef VULKAN_EXCLUSIVE
     #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 #else
     #include "rlvk.h"
@@ -4275,7 +4275,7 @@ Texture2D LoadTextureFromImage(Image image)
 
     if ((image.width != 0) && (image.height != 0))
     {
-    #ifdef USING_RLGL
+    #ifndef VULKAN_EXCLUSIVE
         texture.id = rlLoadTexture(image.data, image.width, image.height, image.format, image.mipmaps);
     #else
         texture.id = RL_MALLOC(sizeof(rlTexture));
@@ -4381,7 +4381,7 @@ TextureCubemap LoadTextureCubemap(Image image, int layout)
 
         // NOTE: Cubemap data is expected to be provided as 6 images in a single data array,
         // one after the other (that's a vertical image), following convention: +X, -X, +Y, -Y, +Z, -Z
-        #ifdef USING_RLGL
+        #ifndef VULKAN_EXCLUSIVE
             cubemap.id = rlLoadTextureCubemap(faces.data, size, faces.format, faces.mipmaps);
         #else
             cubemap.id = RL_MALLOC(sizeof(rlTexture));
@@ -4415,7 +4415,7 @@ RenderTexture2D LoadRenderTexture(int width, int height)
         rlEnableFramebuffer(target.id);
 
         // Create color texture (default to RGBA)
-    #ifdef USING_RLGL
+    #ifndef VULKAN_EXCLUSIVE
         target.texture.id = rlLoadTexture(NULL, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
     #else
         target.texture.id = RL_MALLOC(sizeof(rlTexture));
@@ -4427,7 +4427,7 @@ RenderTexture2D LoadRenderTexture(int width, int height)
         target.texture.mipmaps = 1;
 
         // Create depth renderbuffer/texture
-    #ifdef USING_RLGL
+    #ifndef VULKAN_EXCLUSIVE
         target.depth.id = rlLoadTextureDepth(width, height, true);
     #else
         target.depth.id = RL_MALLOC(sizeof(rlTexture));
@@ -4472,7 +4472,7 @@ void UnloadTexture(Texture2D texture)
     if (texture.id > 0)
     {
         rlUnloadTexture(texture.id);
-    #ifdef USING_RLVK
+    #ifdef VULKAN_EXCLUSIVE
         RL_FREE(texture.id);
     #endif
 
@@ -4501,7 +4501,7 @@ void UnloadRenderTexture(RenderTexture2D target)
         {
             // Color texture attached to FBO is deleted
             rlUnloadTexture(target.texture.id);
-        #ifdef USING_RLVK
+        #ifdef VULKAN_EXCLUSIVE
             RL_FREE(target.texture.id);
         #endif
         }

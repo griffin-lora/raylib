@@ -124,7 +124,7 @@
     #define SW_GL_FRAMEBUFFER_COPY_BGRA false
 #endif
 
-#ifdef USING_RLGL
+#ifndef PLATFORM_DESKTOP_VULKAN
     #define RLGL_IMPLEMENTATION
     #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 #else
@@ -703,7 +703,7 @@ void InitWindow(int width, int height, const char *title)
 
     // Initialize rlgl default data (buffers and shaders)
     // NOTE: Current fbo size stored as globals in rlgl for convenience
-#ifdef USING_RLVK
+#ifdef PLATFORM_DESKTOP_VULKAN
     rlvkInit(CORE.Window.render.width, CORE.Window.render.height, windowHandle);
 #else
     rlglInit(CORE.Window.render.width, CORE.Window.render.height);
@@ -760,7 +760,7 @@ void CloseWindow(void)
     UnloadFontDefault();        // WARNING: Module required: rtext
 #endif
 
-#ifdef USING_RLVK
+#ifdef PLATFORM_DESKTOP_VULKAN
     rlvkClose();                // De-init rlvk
 #else
     rlglClose();                // De-init rlgl
@@ -908,8 +908,8 @@ void BeginDrawing(void)
     //rlTranslatef(0.375, 0.375, 0);    // HACK to have 2D pixel-perfect drawing on OpenGL 1.1
                                         // NOTE: Not required with OpenGL 3.3+
 
-#ifdef USING_RLVK
-    rlBeginFrame();
+#ifdef PLATFORM_DESKTOP_VULKAN
+    rlBeginFrameVk();
 #endif
 }
 
@@ -922,8 +922,8 @@ void EndDrawing(void)
     if (automationEventRecording) RecordAutomationEvent();    // Event recording
 #endif
 
-#ifdef USING_RLVK
-    rlEndFrame();
+#ifdef PLATFORM_DESKTOP_VULKAN
+    rlEndFrameVk();
 #endif
 
 #if !SUPPORT_CUSTOM_FRAME_CONTROL
@@ -1093,7 +1093,7 @@ void EndTextureMode(void)
 // Begin custom shader mode
 void BeginShaderMode(Shader shader)
 {
-#ifndef USING_RLVK
+#ifndef VULKAN_EXCLUSIVE
     rlSetShader(shader.id, shader.locs);
 #else
     rlSetShader(shader.id);
@@ -1103,7 +1103,7 @@ void BeginShaderMode(Shader shader)
 // End custom shader mode (returns to default shader)
 void EndShaderMode(void)
 {
-#ifndef USING_RLVK
+#ifndef VULKAN_EXCLUSIVE
     rlSetShader(rlGetShaderIdDefault(), rlGetShaderLocsDefault());
 #else
     rlSetShader(rlGetShaderIdDefault());
@@ -1288,7 +1288,7 @@ Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode)
 {
     Shader shader = { 0 };
 
-#ifdef USING_RLVK
+#ifdef VULKAN_EXCLUSIVE
     shader.id = RL_MALLOC(sizeof(rlShaderProgram));
     *shader.id = rlLoadShaderProgram(vsCode, fsCode);
 #else
@@ -1352,7 +1352,7 @@ Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode)
     return shader;
 }
 
-#ifdef USING_RLVK
+#ifdef VULKAN_EXCLUSIVE
 // Load shader from files and bind default locations
 // NOTE: If shader filename is NULL, using default vertex/fragment shaders
 Shader LoadShaderEx(const char *vsFileName, const char *fsFileName, unsigned int uniformCount, const ShaderUniform *uniforms)
@@ -1479,7 +1479,7 @@ void UnloadShader(Shader shader)
     if (shader.id != rlGetShaderIdDefault())
     {
         rlUnloadShaderProgram(shader.id);
-    #ifdef USING_RLVK
+    #ifdef VULKAN_EXCLUSIVE
         RL_FREE(shader.id);
     #endif
 

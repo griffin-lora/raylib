@@ -47,11 +47,7 @@
 
 #if SUPPORT_MODULE_RMODELS
 
-#ifdef USING_RLGL
-    #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
-#else
-    #include "rlvk.h"
-#endif
+#include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
 #include "raymath.h"        // Required for: Vector3, Quaternion and Matrix functionality
 
 #include <stdio.h>          // Required for: sprintf(), snprintf()
