@@ -1,11 +1,11 @@
 Refactor at some point (largely the 3 different buffer copying systems, that's pretty bad)
 Add auxilliary textures
 Support rmodels
-Implement functions like IsShaderValid correctly
+Implement functions like IsShaderValid correctly / Implement error handling with gotos
 Deal with uint32_t vs unsigned int types properly
 Support unsigned int handles in raylib.h
-Implement error handling with gotos
 Use single descriptor pool for all shader programs
 Support compute shaders
 Support SSBOs
 Support resizing window
+Rework pipeline dynamic state to be more robust

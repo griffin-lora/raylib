@@ -3799,6 +3799,7 @@ static VkFormat rlGetVulkanFormat(rlPixelFormat format)
     {
         default: return VK_FORMAT_UNDEFINED;
         case RL_PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA: return VK_FORMAT_R8G8_UNORM;
+        case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8: return VK_FORMAT_R8G8B8_UNORM;
         case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return VK_FORMAT_R8G8B8A8_UNORM;
     }
 }
