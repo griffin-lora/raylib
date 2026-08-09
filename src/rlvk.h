@@ -706,8 +706,8 @@ RLAPI void rlSetTexture(const rlTexture *texture);               // Set current 
 RLAPI unsigned int rlLoadVertexArray(void);             // Load vertex array (vao) if supported
 RLAPI rlBuffer rlLoadVertexBuffer(const void *buffer, int size, bool dynamic); // Load a vertex buffer object
 RLAPI rlBuffer rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic); // Load vertex buffer elements object
-RLAPI void rlUpdateVertexBuffer(unsigned int bufferId, const void *data, int dataSize, int offset); // Update vertex buffer object data on GPU buffer
-RLAPI void rlUpdateVertexBufferElements(unsigned int id, const void *data, int dataSize, int offset); // Update vertex buffer elements data on GPU buffer
+RLAPI void rlUpdateVertexBuffer(rlBuffer *buffer, const void *data, int dataSize, int offset); // Update vertex buffer object data on GPU buffer
+RLAPI void rlUpdateVertexBufferElements(rlBuffer *buffer, const void *data, int dataSize, int offset); // Update vertex buffer elements data on GPU buffer
 RLAPI void rlUnloadVertexArray(unsigned int vaoId);     // Unload vertex array (vao)
 RLAPI void rlUnloadVertexBuffer(const rlBuffer *vb);    // Unload vertex buffer object
 RLAPI void rlSetVertexAttribute(unsigned int index, int compSize, int type, bool normalized, int stride, int offset); // Set vertex attribute data configuration
@@ -1171,7 +1171,6 @@ void rlBeginFrame(void)
 
     vkAcquireNextImageKHR(RLVK.device, RLVK.swapChain, UINT64_MAX, RLVK.imageAvailableSemaphore, VK_NULL_HANDLE, &RLVK.imageIndex);
 
-    vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
     vkResetCommandBuffer(RLVK.renderCommandBuffer, 0);
 
     VkCommandBufferBeginInfo beginInfo =
@@ -1180,12 +1179,6 @@ void rlBeginFrame(void)
     };
 
     if (vkBeginCommandBuffer(RLVK.renderCommandBuffer, &beginInfo) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
-        return;
-    }
-
-    if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
         return;
@@ -1221,6 +1214,13 @@ void rlBeginFrame(void)
     rlSetCullFace(RL_CULL_FACE_BACK);
 }
 
+static void rlUpdateBuffer(const rlBuffer *buffer, const void *data, int dataSize, int offset)
+{
+    char *buf = buffer->mappedData;
+    buf += offset;
+    memcpy(buf, data, dataSize);
+}
+
 static void rlUpdateBatchBuffers(rlRenderBatch *batch)
 {
     // NOTE: Vertex buffer offsets are precisely the amount of vertices in said buffer
@@ -1229,16 +1229,16 @@ static void rlUpdateBatchBuffers(rlRenderBatch *batch)
         rlVertexBuffer *vb = &batch->vertexBuffer[i];
 
         // Vertex positions buffer
-        memcpy(vb->buffers[0].mappedData, vb->vertices, vb->vertexOffset*3*sizeof(float));
+        rlUpdateBuffer(&vb->buffers[0], vb->vertices, vb->vertexOffset*3*sizeof(float), 0);
 
         // Texture coordinates buffer
-        memcpy(vb->buffers[1].mappedData, vb->texcoords, vb->vertexOffset*2*sizeof(float));
+        rlUpdateBuffer(&vb->buffers[1], vb->texcoords, vb->vertexOffset*2*sizeof(float), 0);
 
         // Normals buffer
-        memcpy(vb->buffers[2].mappedData, vb->normals, vb->vertexOffset*3*sizeof(float));
+        rlUpdateBuffer(&vb->buffers[2], vb->normals, vb->vertexOffset*3*sizeof(float), 0);
 
         // Colors buffer
-        memcpy(vb->buffers[3].mappedData, vb->colors, vb->vertexOffset*4*sizeof(uint8_t));
+        rlUpdateBuffer(&vb->buffers[3], vb->colors, vb->vertexOffset*4*sizeof(uint8_t), 0);
 
         // Since we have uploaded the vertex buffer data, reset the vertex buffer offset.
         vb->vertexOffset = 0;
@@ -1254,12 +1254,6 @@ void rlEndFrame(void)
 
     vkCmdEndRenderPass(RLVK.renderCommandBuffer);
 
-    if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
-        return;
-    }
-
     if (vkEndCommandBuffer(RLVK.renderCommandBuffer) != VK_SUCCESS)
     {
         TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
@@ -1270,16 +1264,14 @@ void rlEndFrame(void)
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkSemaphore signalSemaphores[] = { RLVK.renderFinishedSemaphore };
 
-    VkCommandBuffer commandBuffers[] = { RLVK.transferCommandBuffer, RLVK.renderCommandBuffer };
-
     VkSubmitInfo submitInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = waitSemaphores,
         .pWaitDstStageMask = waitStages,
-        .commandBufferCount = 2,
-        .pCommandBuffers = commandBuffers,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &RLVK.renderCommandBuffer,
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = signalSemaphores
     };
@@ -2131,7 +2123,7 @@ static rlBuffer rlLoadBuffer(const void* data, int size, bool dynamic, VkBufferU
         // look how easy that copy is!
         if (data != NULL)
         {
-            memcpy(buffer.mappedData, data, size);
+            rlUpdateBuffer(&buffer, data, size, 0);
         }
     }
 
@@ -3431,28 +3423,27 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             // Create modelview-projection matrix and upload to shader
             Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, rlMatrixMultiply(RLVK.State.projection, flipVertical));
-            char *buf = RLVK.uniformBuffers[0].mappedData;
-            buf += 5*4*4*sizeof(float)*RLVK.State.batchCounter;
+            int offset = 5*4*4*sizeof(float)*RLVK.State.batchCounter;
             
             // matrix mvp
-            memcpy(buf, rlMatrixToFloat(matMVP), 4*4*sizeof(float));
+            rlUpdateBuffer(&RLVK.uniformBuffers[0], rlMatrixToFloat(matMVP), 4*4*sizeof(float), offset);
 
             // matrix projection
-            buf += 4*4*sizeof(float);
-            memcpy(buf, rlMatrixToFloat(RLVK.State.projection), 4*4*sizeof(float));
+            offset += 4*4*sizeof(float);
+            rlUpdateBuffer(&RLVK.uniformBuffers[0], rlMatrixToFloat(RLVK.State.projection), 4*4*sizeof(float), offset);
 
             // matrix view
-            buf += 4*4*sizeof(float);
-            memcpy(buf, rlMatrixToFloat(RLVK.State.modelview), 4*4*sizeof(float));
+            offset += 4*4*sizeof(float);
+            rlUpdateBuffer(&RLVK.uniformBuffers[0], rlMatrixToFloat(RLVK.State.modelview), 4*4*sizeof(float), offset);
 
             // matrix model
-            buf += 4*4*sizeof(float);
-            memcpy(buf, rlMatrixToFloat(RLVK.State.transform), 4*4*sizeof(float));
+            offset += 4*4*sizeof(float);
+            rlUpdateBuffer(&RLVK.uniformBuffers[0], rlMatrixToFloat(RLVK.State.transform), 4*4*sizeof(float), offset);
 
             // matrix normal
             Matrix normal = rlMatrixTranspose(rlMatrixInvert(RLVK.State.transform));
-            buf += 4*4*sizeof(float);
-            memcpy(buf, rlMatrixToFloat(normal), 4*4*sizeof(float));
+            offset += 4*4*sizeof(float);
+            rlUpdateBuffer(&RLVK.uniformBuffers[0], rlMatrixToFloat(normal), 4*4*sizeof(float), offset);
             
             uint32_t descriptorOffsets[] = {
                 5*4*4*sizeof(float)*RLVK.State.batchCounter
@@ -3463,9 +3454,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             // Bind shader program custom uniform buffer descriptors (if it has any)
             if (program->uniformCount > 0)
             {
-                char *buf = program->uniformBuffer.mappedData;
-                buf += program->descriptorSize*RLVK.State.batchCounter;
-                memcpy(buf, program->uniformBufferData, program->descriptorSize);
+                rlUpdateBuffer(&program->uniformBuffer, program->uniformBufferData, program->descriptorSize, program->descriptorSize*RLVK.State.batchCounter);
 
                 uint32_t descriptorOffsets2[] = {
                     program->descriptorSize*RLVK.State.batchCounter
@@ -3670,14 +3659,14 @@ rlBuffer rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  
     return rlLoadBuffer(buffer, size, dynamic, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
-void rlUpdateVertexBuffer(unsigned int bufferId, const void *data, int dataSize, int offset)  // Update vertex buffer object data on GPU buffer 
+void rlUpdateVertexBuffer(rlBuffer *buffer, const void *data, int dataSize, int offset)  // Update vertex buffer object data on GPU buffer 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateVertexBuffer was called.");
+    rlUpdateBuffer(buffer, data, dataSize, offset);
 }
 
-void rlUpdateVertexBufferElements(unsigned int id, const void *data, int dataSize, int offset)  // Update vertex buffer elements data on GPU buffer 
+void rlUpdateVertexBufferElements(rlBuffer *buffer, const void *data, int dataSize, int offset)  // Update vertex buffer elements data on GPU buffer 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateVertexBufferElements was called.");
+    rlUpdateBuffer(buffer, data, dataSize, offset);
 }
 
 void rlUnloadVertexArray(unsigned int vaoId)      // Unload vertex array (vao) 
