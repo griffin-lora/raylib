@@ -315,6 +315,16 @@ typedef struct rlTexture {
     rlvkDescriptorSet descriptorSet;
 } rlTexture;
 
+typedef struct rlBuffer {
+    rlvkBuffer buffer;
+    rlvkAllocation allocation;
+    
+    // buffers are either:
+    // static -- use staging buffers; or
+    // dynamic -- persisently mapped.
+    void *mappedBuffer;
+} rlBuffer;
+
 // Dynamic vertex buffers (position + texcoords + colors + indices arrays)
 typedef struct rlVertexBuffer {
     int elementCount;           // Number of elements in the buffer (QUADS)
@@ -352,8 +362,7 @@ typedef struct rlRenderBatch {
     int bufferCount;            // Number of vertex buffers (multi-buffering support)
     int currentBuffer;          // Current buffer tracking in case of multi-buffering
     rlVertexBuffer *vertexBuffer; // Dynamic buffer(s) for vertex data
-    rlvkBuffer quadIndexBuffer;
-    rlvkAllocation quadIndexAllocation;
+    rlBuffer indexBuffer;
 
     rlDrawCall *draws;          // Draw calls array, depends on textureId
     int drawCounter;            // Draw calls counter
@@ -700,12 +709,12 @@ RLAPI void rlSetTexture(const rlTexture *texture);               // Set current 
 
 // Vertex buffers management
 RLAPI unsigned int rlLoadVertexArray(void);             // Load vertex array (vao) if supported
-RLAPI unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic); // Load a vertex buffer object
-RLAPI unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic); // Load vertex buffer elements object
+RLAPI rlBuffer rlLoadVertexBuffer(const void *buffer, int size, bool dynamic); // Load a vertex buffer object
+RLAPI rlBuffer rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic); // Load vertex buffer elements object
 RLAPI void rlUpdateVertexBuffer(unsigned int bufferId, const void *data, int dataSize, int offset); // Update vertex buffer object data on GPU buffer
 RLAPI void rlUpdateVertexBufferElements(unsigned int id, const void *data, int dataSize, int offset); // Update vertex buffer elements data on GPU buffer
 RLAPI void rlUnloadVertexArray(unsigned int vaoId);     // Unload vertex array (vao)
-RLAPI void rlUnloadVertexBuffer(unsigned int vboId);    // Unload vertex buffer object
+RLAPI void rlUnloadVertexBuffer(const rlBuffer *vb);    // Unload vertex buffer object
 RLAPI void rlSetVertexAttribute(unsigned int index, int compSize, int type, bool normalized, int stride, int offset); // Set vertex attribute data configuration
 RLAPI void rlSetVertexAttributeDivisor(unsigned int index, int divisor); // Set vertex attribute data divisor
 RLAPI void rlSetVertexAttributeDefault(int locIndex, const void *value, int attribType, int count); // Set vertex attribute default value, when attribute to provided
@@ -3187,85 +3196,7 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
         k++;
     }
 
-    VkBufferCreateInfo stagingBufferCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        .size = bufferElements*6*sizeof(uint16_t)
-    };
-
-    VkBufferCreateInfo deviceBufferCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        .size = bufferElements*6*sizeof(uint16_t)
-    };
-
-    VkBuffer indexStagingBuffer;
-    VmaAllocation indexStagingAllocation;
-
-    if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &indexStagingBuffer, &indexStagingAllocation, NULL) != VK_SUCCESS)
-    {
-        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
-        return batch;
-    }
-    
-    if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &batch.quadIndexBuffer, &batch.quadIndexAllocation, NULL) != VK_SUCCESS)
-    {
-        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
-        return batch;
-    }
-
-    VkCommandBufferBeginInfo beginInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    };
-
-    if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
-        return batch;
-    }
-
-    void* mappedData;
-    VkBufferCopy bufferCopy = {
-        .size = bufferElements*6*sizeof(uint16_t)
-    };
-
-    if (vmaMapMemory(RLVK.allocator, indexStagingAllocation, &mappedData) != VK_SUCCESS)
-    {
-        TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
-        return batch;
-    }
-    memcpy(mappedData, quadIndices, bufferElements*6*sizeof(uint16_t));
-    vmaUnmapMemory(RLVK.allocator, indexStagingAllocation);
-    vkCmdCopyBuffer(RLVK.transferCommandBuffer, indexStagingBuffer, batch.quadIndexBuffer, 1, &bufferCopy);
-
-    if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
-        return batch;
-    }
-
-    VkSubmitInfo submitInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &RLVK.transferCommandBuffer
-    };
-
-    if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.transferFence) != VK_SUCCESS)
-    {
-        TRACELOG(LOG_WARNING, "Vulkan: Failed to submit transfer command buffer");
-        return batch;
-    }
-
-    vkWaitForFences(RLVK.device, 1, &RLVK.transferFence, VK_TRUE, UINT64_MAX);
-    vkResetFences(RLVK.device, 1, &RLVK.transferFence);
-    vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
-
-    vmaDestroyBuffer(RLVK.allocator, indexStagingBuffer, indexStagingAllocation);
+    batch.indexBuffer = rlLoadVertexBufferElement(quadIndices, bufferElements*6*sizeof(uint16_t), false);
 
     // Initialize CPU (RAM) vertex buffers (position, texcoord, color data and indexes)
     //--------------------------------------------------------------------------------------------
@@ -3294,13 +3225,15 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
 
     // Upload to GPU (VRAM) vertex data and initialize VAOs/VBOs
     //--------------------------------------------------------------------------------------------
-    stagingBufferCreateInfo = (VkBufferCreateInfo) {
+    VkBufferCreateInfo stagingBufferCreateInfo =
+    {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
 
-    deviceBufferCreateInfo = (VkBufferCreateInfo) {
+    VkBufferCreateInfo deviceBufferCreateInfo =
+    {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
@@ -3398,7 +3331,7 @@ rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements)  // Load a r
 
 void rlUnloadRenderBatch(rlRenderBatch batch)     // Unload render batch system 
 {
-    vmaDestroyBuffer(RLVK.allocator, batch.quadIndexBuffer, batch.quadIndexAllocation);
+    rlUnloadVertexBuffer(&batch.indexBuffer);
 
     // Unload all vertex buffers data
     for (int i = 0; i < batch.bufferCount; i++)
@@ -3519,7 +3452,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             // Bind all vertex buffers (all in one command!)
             vkCmdBindVertexBuffers(RLVK.renderCommandBuffer, 0, 4, vb->deviceBuffers, offsets);
-            vkCmdBindIndexBuffer(RLVK.renderCommandBuffer, batch->quadIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindIndexBuffer(RLVK.renderCommandBuffer, batch->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16);
 
             // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, batch->vertexBuffer[batch->currentBuffer].vboId[4]);
 
@@ -3700,16 +3633,110 @@ unsigned int rlLoadVertexArray(void)              // Load vertex array (vao) if 
 	return 0;
 }
 
-unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
+static rlBuffer rlLoadBuffer(const void* data, int size, bool dynamic, VkBufferUsageFlags usage)
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBuffer was called.");
-	return 0;
+    rlBuffer buffer = { 0 };
+
+    if (!dynamic)
+    {
+        VkBufferCreateInfo deviceBufferCreateInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .usage = usage,
+            .size = size
+        };
+
+        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &buffer.buffer, &buffer.allocation, NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
+            return buffer;
+        }
+
+        // copy the data in
+        VkBuffer stagingBuffer;
+        VmaAllocation stagingAllocation;
+
+        VkBufferCreateInfo stagingBufferCreateInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .size = size
+        };
+
+        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &stagingBuffer, &stagingAllocation, NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+            return buffer;
+        }
+
+        VkCommandBufferBeginInfo beginInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        };
+
+        if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
+        {
+            TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
+            return buffer;
+        }
+
+        void* mappedData;
+        VkBufferCopy bufferCopy = { .size = size };
+
+        if (vmaMapMemory(RLVK.allocator, stagingAllocation, &mappedData) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+            return buffer;
+        }
+        memcpy(mappedData, data, size);
+        vmaUnmapMemory(RLVK.allocator, stagingAllocation);
+        vkCmdCopyBuffer(RLVK.transferCommandBuffer, stagingBuffer, buffer.buffer, 1, &bufferCopy);
+
+        if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
+        {
+            TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
+            return buffer;
+        }
+
+        VkSubmitInfo submitInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &RLVK.transferCommandBuffer
+        };
+
+        if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.transferFence) != VK_SUCCESS)
+        {
+            TRACELOG(LOG_WARNING, "Vulkan: Failed to submit transfer command buffer");
+            return buffer;
+        }
+
+        vkWaitForFences(RLVK.device, 1, &RLVK.transferFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(RLVK.device, 1, &RLVK.transferFence);
+        vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
+
+        vmaDestroyBuffer(RLVK.allocator, stagingBuffer, stagingAllocation);
+        //
+    }
+    else
+    {
+
+    }
+
+    return buffer;
 }
 
-unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
+rlBuffer rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBufferElement was called.");
-	return 0;
+    return rlLoadBuffer(buffer, size, dynamic, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+}
+
+rlBuffer rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
+{
+    return rlLoadBuffer(buffer, size, dynamic, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
 void rlUpdateVertexBuffer(unsigned int bufferId, const void *data, int dataSize, int offset)  // Update vertex buffer object data on GPU buffer 
@@ -3727,9 +3754,13 @@ void rlUnloadVertexArray(unsigned int vaoId)      // Unload vertex array (vao)
     TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadVertexArray was called.");
 }
 
-void rlUnloadVertexBuffer(unsigned int vboId)     // Unload vertex buffer object 
+void rlUnloadVertexBuffer(const rlBuffer *vb)     // Unload vertex buffer object 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadVertexBuffer was called.");
+    if (vb->mappedBuffer)
+    {
+        vmaUnmapMemory(RLVK.allocator, vb->allocation);
+    }
+    vmaDestroyBuffer(RLVK.allocator, vb->buffer, vb->allocation);
 }
 
 void rlSetVertexAttribute(unsigned int index, int compSize, int type, bool normalized, int stride, int offset)  // Set vertex attribute data configuration 

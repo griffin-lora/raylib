@@ -9,3 +9,4 @@ Support compute shaders
 Support SSBOs
 Support resizing window
 Rework pipeline dynamic state to be more robust
+Add location support for both standard and custom shader uniforms
