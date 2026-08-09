@@ -84,7 +84,7 @@
 #ifndef PLATFORM_DESKTOP_VULKAN
     static Texture2D texShapes = { 1, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlgl)
 #else
-    static Texture2D texShapes = { -1u, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlvk)
+    static Texture2D texShapes = { 0, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlvk)
 #endif
 #else
     static Texture2D texShapes = { NULL, 1, 1, 1, 7 };                // Texture used on shapes drawing (white pixel loaded by rlvk)
@@ -113,7 +113,7 @@ void SetShapesTexture(Texture2D texture, Rectangle rec)
     #ifndef PLATFORM_DESKTOP_VULKAN
         texShapes = (Texture2D){ 1, 1, 1, 1, 7 };
     #else
-        texShapes = (Texture2D){ -1u, 1, 1, 1, 7 };
+        texShapes = (Texture2D){ 0, 1, 1, 1, 7 };
     #endif
     #else
         texShapes = (Texture2D){ NULL, 1, 1, 1, 7 };

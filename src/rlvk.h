@@ -154,6 +154,10 @@
     #define RL_CULL_DISTANCE_FAR                4000.0      // Default far cull distance
 #endif
 
+#ifndef RL_MAX_COMPATIBILITY_HANDLES
+    #define RL_MAX_COMPATIBILITY_HANDLES                256      // Maximum amount of RLGL compatibility handles for RLVK
+#endif
+
 // Texture parameters (equivalent to OpenGL defines)
 #define RL_TEXTURE_WRAP_S                       0x2802      // GL_TEXTURE_WRAP_S
 #define RL_TEXTURE_WRAP_T                       0x2803      // GL_TEXTURE_WRAP_T
@@ -786,9 +790,9 @@ RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId);               
 #define rlGetLocationUniform rlGetLocationUniformVk
 #define rlGetLocationAttrib rlGetLocationAttribVk
 #else
-RLAPI void rlUnloadShader(rlvkShaderModule shaderModule);                                     // Unload shader, loaded with rlLoadShader()
-RLAPI void rlUnloadShaderProgram(const rlShaderProgram *program);                              // Unload shader program
-RLAPI int rlGetLocationUniform(const rlShaderProgram *program, const char *uniformName);       // Get shader location uniform, requires shader program id
+RLAPI void rlUnloadShader(unsigned int id);                                     // Unload shader, loaded with rlLoadShader()
+RLAPI void rlUnloadShaderProgram(unsigned int id);                              // Unload shader program
+RLAPI int rlGetLocationUniform(unsigned int id, const char *uniformName);       // Get shader location uniform, requires shader program id
 RLAPI int rlGetLocationAttrib(unsigned int id, const char *attribName);         // Get shader location attribute, requires shader program id
 #endif
 RLAPI void rlSetUniform(int locIndex, const void *value, int uniformType, int count); // Set shader value uniform
@@ -882,6 +886,13 @@ RLAPI int rlGetLocationUniformVk(const rlShaderProgram *program, const char *uni
 RLAPI int rlGetLocationAttribVk(const rlShaderProgram *program, const char *attribName);         // Get shader location attribute, requires shader program id
 RLAPI void rlSetUniformSamplerVk(int locIndex, const rlTexture* texture);           // Set shader value sampler
 RLAPI void rlSetShaderVk(rlShaderProgram *program);                             // Set shader currently active (id and locations)
+
+// RLVK <-> RLGL compatibility functions
+#ifndef VULKAN_EXCLUSIVE
+RLAPI unsigned int rlAcquireId(void *handle);
+RLAPI void rlFreeId(unsigned int);
+RLAPI void *rlGetHandle(unsigned int id);
+#endif
 
 #if defined(__cplusplus)
 }
@@ -1023,6 +1034,9 @@ typedef struct rlvkData {
         VkShaderModule defaultVShaderModule;      // Default vertex shader module
         VkShaderModule defaultFShaderModule;      // Default fragment shader module
         rlShaderProgram defaultShaderProgram;       // Default graphics shader program, supports vertex color and diffuse texture
+    #ifndef VULKAN_EXCLUSIVE
+        unsigned int defaultShaderId;
+    #endif
 
         const rlShaderProgram *descriptorManagingCurrentBoundShaderProgram; // NOTE: This is ONLY for descriptor management. Do not use it for rendering.
 
@@ -1074,6 +1088,9 @@ typedef struct rlvkData {
         int maxDepthBits;                   // Maximum bits for depth component
 
     } ExtSupported;     // Extensions supported flags
+#ifndef VULKAN_EXCLUSIVE
+    void *handles[RL_MAX_COMPATIBILITY_HANDLES];
+#endif
 } rlvkData;
 
 static const VmaAllocationCreateInfo sharedWriteAllocationCreateInfo = {
@@ -3096,6 +3113,9 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     }
 
     RLVK.State.defaultShaderProgram = rlLoadShaderProgramExVk(RLVK.State.defaultVShaderModule, RLVK.State.defaultFShaderModule, 0, NULL);
+#ifndef VULKAN_EXCLUSIVE
+    RLVK.State.defaultShaderId = rlAcquireId(&RLVK.State.defaultShaderProgram);
+#endif
     RLVK.State.currentShaderProgram = &RLVK.State.defaultShaderProgram;
     
     RLVK.swapChainFramebuffers = RL_MALLOC(RLVK.swapChainImageCount * sizeof(VkFramebuffer));
@@ -4902,6 +4922,38 @@ void rlWaitIdleVk(void) {
 }
 
 #ifndef VULKAN_EXCLUSIVE
+
+unsigned int rlAcquireId(void *handle)
+{
+    if (handle == NULL)
+    {
+        return 0;
+    }
+
+    for (unsigned int i = 0; i < RL_MAX_COMPATIBILITY_HANDLES; i++)
+    {
+        if (RLVK.handles[i] == NULL)
+        {
+            return i - 1;
+        }
+    }
+    TRACELOG(RL_LOG_ERROR, "Cannot acquire an id for a compatibility handle. Try increasing RL_MAX_COMPATIBILITY_HANDLES.");
+    return 0;
+}
+
+void rlFreeId(unsigned int id)
+{
+    RLVK.handles[id - 1] = NULL;
+}
+
+void *rlGetHandle(unsigned int id)
+{
+    if (id == 0)
+    {
+        return NULL;
+    }
+    return RLVK.handles[id - 1];
+}
 
 unsigned int rlGetShaderIdDefault(void)           // Get default shader id 
 {
