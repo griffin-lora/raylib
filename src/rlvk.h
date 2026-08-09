@@ -322,7 +322,7 @@ typedef struct rlBuffer {
     // buffers are either:
     // static -- use staging buffers; or
     // dynamic -- persisently mapped.
-    void *mappedBuffer;
+    void *mappedData;
 } rlBuffer;
 
 // Dynamic vertex buffers (position + texcoords + colors + indices arrays)
@@ -377,13 +377,11 @@ typedef struct rlShaderProgram {
     uint32_t uniformCount;
 
     void *uniformBufferData; // Data to upload to the uniform buffer when drawing
-    void *mappedUniformBuffer;
+    rlBuffer uniformBuffer;
     rlvkDescriptorPool descriptorPool;
     rlvkDescriptorSetLayout descriptorSetLayout;
     char **structNames;
     uint32_t *structOffsets;
-    rlvkBuffer uniformBuffer;
-    rlvkAllocation uniformAllocation;
 } rlShaderProgram;
 
 // OpenGL version
@@ -906,10 +904,8 @@ typedef struct rlvkData {
     VkDescriptorSetLayout textureDescriptorSetLayout;
 
     VkDescriptorSet bufferDescriptorSet;
-    void *mappedUniformBuffers[RL_UNIFORM_BUFFER_COUNT];
 
-    rlvkBuffer uniformBuffers[RL_UNIFORM_BUFFER_COUNT];
-    rlvkAllocation uniformAllocations[RL_UNIFORM_BUFFER_COUNT];
+    rlBuffer uniformBuffers[RL_UNIFORM_BUFFER_COUNT];
 
     //-----------
 
@@ -2063,6 +2059,131 @@ void rlSetBlendFactorsSeparate(int glSrcRGB, int glDstRGB, int glSrcAlpha, int g
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetBlendFactorsSeparate was called.");
 }
 
+static rlBuffer rlLoadBuffer(const void* data, int size, bool dynamic, VkBufferUsageFlags usage)
+{
+    rlBuffer buffer = { 0 };
+
+    VkBufferCreateInfo deviceBufferCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage = usage,
+        .size = size
+    };
+
+    if (!dynamic)
+    {
+        deviceBufferCreateInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &buffer.buffer, &buffer.allocation, NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
+            return buffer;
+        }
+
+        // copy the data in
+        VkBuffer stagingBuffer;
+        VmaAllocation stagingAllocation;
+
+        VkBufferCreateInfo stagingBufferCreateInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .size = size
+        };
+
+        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &stagingBuffer, &stagingAllocation, NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
+            return buffer;
+        }
+
+        VkCommandBufferBeginInfo beginInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        };
+
+        if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
+        {
+            TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
+            return buffer;
+        }
+
+        void* mappedData;
+        VkBufferCopy bufferCopy = { .size = size };
+
+        if (vmaMapMemory(RLVK.allocator, stagingAllocation, &mappedData) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
+            return buffer;
+        }
+        memcpy(mappedData, data, size);
+        vmaUnmapMemory(RLVK.allocator, stagingAllocation);
+        vkCmdCopyBuffer(RLVK.transferCommandBuffer, stagingBuffer, buffer.buffer, 1, &bufferCopy);
+
+        if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
+        {
+            TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
+            return buffer;
+        }
+
+        VkSubmitInfo submitInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &RLVK.transferCommandBuffer
+        };
+
+        if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.transferFence) != VK_SUCCESS)
+        {
+            TRACELOG(LOG_WARNING, "Vulkan: Failed to submit transfer command buffer");
+            return buffer;
+        }
+
+        vkWaitForFences(RLVK.device, 1, &RLVK.transferFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(RLVK.device, 1, &RLVK.transferFence);
+        vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
+
+        vmaDestroyBuffer(RLVK.allocator, stagingBuffer, stagingAllocation);
+        //
+    }
+    else
+    {
+        VkBufferCreateInfo deviceBufferCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .usage = usage,
+            .size = size
+        };
+
+        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &sharedWriteAllocationCreateInfo, &buffer.buffer, &buffer.allocation, NULL) != VK_SUCCESS)
+        {
+            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
+            return buffer;
+        }
+
+        vmaMapMemory(RLVK.allocator, buffer.allocation, &buffer.mappedData);
+
+        // look how easy that copy is!
+        if (data != NULL)
+        {
+            memcpy(buffer.mappedData, data, size);
+        }
+    }
+
+    return buffer;
+}
+
+static void rlUnloadBuffer(const rlBuffer *buffer)
+{
+    if (buffer->mappedData)
+    {
+        vmaUnmapMemory(RLVK.allocator, buffer->allocation);
+    }
+    vmaDestroyBuffer(RLVK.allocator, buffer->buffer, buffer->allocation);
+}
+
 static VkFormat rlGetSupportedFormat(VkPhysicalDevice physicalDevice, int formatCount, const VkFormat *formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
 {
     for (int i = 0; i < formatCount; i++)
@@ -2903,15 +3024,10 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
     };
 
     // location 0 matrix mvp view everything
-    uniformBufferCreateInfo.size = 5*4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME;
-    if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &RLVK.uniformBuffers[0], &RLVK.uniformAllocations[0], NULL) != VK_SUCCESS)
-    {
-        TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
-        return;
-    }
-    vmaMapMemory(RLVK.allocator, RLVK.uniformAllocations[0], &RLVK.mappedUniformBuffers[0]);
+    RLVK.uniformBuffers[0] = rlLoadBuffer(NULL, 5*4*4*sizeof(float)*RL_DEFAULT_BATCH_COUNT_PER_FRAME, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
     uniformBufferInfos[0] = (VkDescriptorBufferInfo) {
-        .buffer = RLVK.uniformBuffers[0],
+        .buffer = RLVK.uniformBuffers[0].buffer,
         .range = 5*4*4*sizeof(float)
     };
     uniformWrites[0].dstBinding = 0;
@@ -3053,8 +3169,7 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
 {
     for (uint32_t i = 0; i < RL_UNIFORM_BUFFER_COUNT; i++)
     {
-        vmaUnmapMemory(RLVK.allocator, RLVK.uniformAllocations[i]);
-        vmaDestroyBuffer(RLVK.allocator, RLVK.uniformBuffers[i], RLVK.uniformAllocations[i]);
+        rlUnloadBuffer(&RLVK.uniformBuffers[i]);
     }
 
     vkDestroyDescriptorSetLayout(RLVK.device, RLVK.textureDescriptorSetLayout, NULL);
@@ -3405,7 +3520,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
 
             // Create modelview-projection matrix and upload to shader
             Matrix matMVP = rlMatrixMultiply(RLVK.State.modelview, rlMatrixMultiply(RLVK.State.projection, flipVertical));
-            char *buf = RLVK.mappedUniformBuffers[0];
+            char *buf = RLVK.uniformBuffers[0].mappedData;
             buf += 5*4*4*sizeof(float)*RLVK.State.batchCounter;
             
             // matrix mvp
@@ -3437,7 +3552,7 @@ void rlDrawRenderBatch(rlRenderBatch *batch)      // Draw render batch data (Upd
             // Bind shader program custom uniform buffer descriptors (if it has any)
             if (program->uniformCount > 0)
             {
-                char *buf = program->mappedUniformBuffer;
+                char *buf = program->uniformBuffer.mappedData;
                 buf += program->descriptorSize*RLVK.State.batchCounter;
                 memcpy(buf, program->uniformBufferData, program->descriptorSize);
 
@@ -3633,110 +3748,14 @@ unsigned int rlLoadVertexArray(void)              // Load vertex array (vao) if 
 	return 0;
 }
 
-static rlBuffer rlLoadBuffer(const void* data, int size, bool dynamic, VkBufferUsageFlags usage)
-{
-    rlBuffer buffer = { 0 };
-
-    if (!dynamic)
-    {
-        VkBufferCreateInfo deviceBufferCreateInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .usage = usage,
-            .size = size
-        };
-
-        if (vmaCreateBuffer(RLVK.allocator, &deviceBufferCreateInfo, &deviceAllocationCreateInfo, &buffer.buffer, &buffer.allocation, NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create device buffer");
-            return buffer;
-        }
-
-        // copy the data in
-        VkBuffer stagingBuffer;
-        VmaAllocation stagingAllocation;
-
-        VkBufferCreateInfo stagingBufferCreateInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            .size = size
-        };
-
-        if (vmaCreateBuffer(RLVK.allocator, &stagingBufferCreateInfo, &sharedWriteAllocationCreateInfo, &stagingBuffer, &stagingAllocation, NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create staging buffer");
-            return buffer;
-        }
-
-        VkCommandBufferBeginInfo beginInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-        };
-
-        if (vkBeginCommandBuffer(RLVK.transferCommandBuffer, &beginInfo) != VK_SUCCESS)
-        {
-            TRACELOG(LOG_WARNING, "Vulkan: Failed to begin recording command buffer");
-            return buffer;
-        }
-
-        void* mappedData;
-        VkBufferCopy bufferCopy = { .size = size };
-
-        if (vmaMapMemory(RLVK.allocator, stagingAllocation, &mappedData) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to map buffer");
-            return buffer;
-        }
-        memcpy(mappedData, data, size);
-        vmaUnmapMemory(RLVK.allocator, stagingAllocation);
-        vkCmdCopyBuffer(RLVK.transferCommandBuffer, stagingBuffer, buffer.buffer, 1, &bufferCopy);
-
-        if (vkEndCommandBuffer(RLVK.transferCommandBuffer) != VK_SUCCESS)
-        {
-            TRACELOG(LOG_WARNING, "Vulkan: Failed to record command buffer");
-            return buffer;
-        }
-
-        VkSubmitInfo submitInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &RLVK.transferCommandBuffer
-        };
-
-        if (vkQueueSubmit(RLVK.graphicsQueue, 1, &submitInfo, RLVK.transferFence) != VK_SUCCESS)
-        {
-            TRACELOG(LOG_WARNING, "Vulkan: Failed to submit transfer command buffer");
-            return buffer;
-        }
-
-        vkWaitForFences(RLVK.device, 1, &RLVK.transferFence, VK_TRUE, UINT64_MAX);
-        vkResetFences(RLVK.device, 1, &RLVK.transferFence);
-        vkResetCommandBuffer(RLVK.transferCommandBuffer, 0);
-
-        vmaDestroyBuffer(RLVK.allocator, stagingBuffer, stagingAllocation);
-        //
-    }
-    else
-    {
-
-    }
-
-    return buffer;
-}
-
 rlBuffer rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
 {
-    return rlLoadBuffer(buffer, size, dynamic, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    return rlLoadBuffer(buffer, size, dynamic, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 }
 
 rlBuffer rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
 {
-    return rlLoadBuffer(buffer, size, dynamic, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    return rlLoadBuffer(buffer, size, dynamic, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
 void rlUpdateVertexBuffer(unsigned int bufferId, const void *data, int dataSize, int offset)  // Update vertex buffer object data on GPU buffer 
@@ -3756,11 +3775,7 @@ void rlUnloadVertexArray(unsigned int vaoId)      // Unload vertex array (vao)
 
 void rlUnloadVertexBuffer(const rlBuffer *vb)     // Unload vertex buffer object 
 {
-    if (vb->mappedBuffer)
-    {
-        vmaUnmapMemory(RLVK.allocator, vb->allocation);
-    }
-    vmaDestroyBuffer(RLVK.allocator, vb->buffer, vb->allocation);
+    rlUnloadBuffer(vb);
 }
 
 void rlSetVertexAttribute(unsigned int index, int compSize, int type, bool normalized, int stride, int offset)  // Set vertex attribute data configuration 
@@ -4404,22 +4419,10 @@ rlShaderProgram rlLoadShaderProgramPro(VkShaderModule vsModule, VkShaderModule f
             return program;
         }
 
-        VkBufferCreateInfo uniformBufferCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            .size = RL_DEFAULT_BATCH_COUNT_PER_FRAME*program.descriptorSize
-        };
-
-        if (vmaCreateBuffer(RLVK.allocator, &uniformBufferCreateInfo, &sharedWriteAllocationCreateInfo, &program.uniformBuffer, &program.uniformAllocation, NULL) != VK_SUCCESS)
-        {
-            TRACELOG(RL_LOG_WARNING, "Vma: Failed to create uniform buffer");
-            return program;
-        }
-        vmaMapMemory(RLVK.allocator, program.uniformAllocation, &program.mappedUniformBuffer);
+        program.uniformBuffer = rlLoadBuffer(NULL, RL_DEFAULT_BATCH_COUNT_PER_FRAME*program.descriptorSize, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
         VkDescriptorBufferInfo uniformBufferInfo = {
-            .buffer = program.uniformBuffer,
+            .buffer = program.uniformBuffer.buffer,
             .range = program.descriptorSize
         };
 
@@ -4685,8 +4688,7 @@ void rlUnloadShaderProgram(const rlShaderProgram *program)                      
     }
     if (program->uniformCount > 0)
     {
-        vmaUnmapMemory(RLVK.allocator, program->uniformAllocation);
-        vmaDestroyBuffer(RLVK.allocator, program->uniformBuffer, program->uniformAllocation);
+        rlUnloadBuffer(&program->uniformBuffer);
     }
 
     RL_FREE(program->uniformBufferData);
