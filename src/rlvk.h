@@ -1030,6 +1030,9 @@ typedef struct rlvkData {
 
         VkDescriptorSet currentTextureDescriptorSet;      // Current texture descriptor set to be used on rlBegin
         rlTexture defaultTexture;      // Default texture used on shapes/poly drawing (required by shader)
+    #ifndef VULKAN_EXCLUSIVE
+        unsigned int defaultTextureId;
+    #endif
         unsigned int activeTextureId[RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS];    // Active texture ids to be enabled on batch drawing (0 active by default)
         VkShaderModule defaultVShaderModule;      // Default vertex shader module
         VkShaderModule defaultFShaderModule;      // Default fragment shader module
@@ -3206,6 +3209,9 @@ void rlvkInit(int width, int height, GLFWwindow *windowHandle)              // I
 
     uint8_t pixels[4] = { 255, 255, 255, 255 };   // 1 pixel RGBA (4 bytes)
     RLVK.State.defaultTexture = rlLoadTextureVk(pixels, 1, 1, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+#ifndef VULKAN_EXCLUSIVE
+    RLVK.State.defaultTextureId = rlAcquireId(&RLVK.State.defaultTexture);
+#endif
     RLVK.State.currentTextureDescriptorSet = RLVK.State.defaultTexture.descriptorSet;
 
     RLVK.defaultBatch = rlLoadRenderBatch(RL_DEFAULT_BATCH_BUFFERS, RL_DEFAULT_BATCH_BUFFER_ELEMENTS);
@@ -4934,7 +4940,8 @@ unsigned int rlAcquireId(void *handle)
     {
         if (RLVK.handles[i] == NULL)
         {
-            return i - 1;
+            RLVK.handles[i] = handle;
+            return i + 1;
         }
     }
     TRACELOG(RL_LOG_ERROR, "Cannot acquire an id for a compatibility handle. Try increasing RL_MAX_COMPATIBILITY_HANDLES.");
@@ -4955,89 +4962,96 @@ void *rlGetHandle(unsigned int id)
     return RLVK.handles[id - 1];
 }
 
+//
+
 unsigned int rlGetShaderIdDefault(void)           // Get default shader id 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderIdDefault was called.");
-
 	return RLVK.State.defaultShaderId;
 }
 
 void rlSetTexture(unsigned int id)                // Set current texture for render batch and check buffers limits 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetTexture was called.");
+    rlSetTextureVk(rlGetHandle(id));
 }
 
 unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBuffer was called.");
-	return 0;
+    rlBuffer *p = (rlBuffer *)RL_MALLOC(sizeof(rlBuffer));
+    *p = rlLoadVertexBufferVk(buffer, size, dynamic);
+    return rlAcquireId(p);
 }
 
 unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBufferElement was called.");
-	return 0;
+    rlBuffer *p = (rlBuffer *)RL_MALLOC(sizeof(rlBuffer));
+    *p = rlLoadVertexBufferElementVk(buffer, size, dynamic);
+    return rlAcquireId(p);
 }
 
 unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount)  // Load texture data 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTexture was called.");
-	return 0;
+    rlTexture *p = (rlTexture *)RL_MALLOC(sizeof(rlTexture));
+    *p = rlLoadTextureVk(data, width, height, format, mipmapCount);
+    return rlAcquireId(p);
 }
 
 void rlEnableShader(unsigned int id)              // Enable shader program 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableShader was called.");
+    rlEnableShaderVk(rlGetHandle(id));
 }
 
 void rlUnloadTexture(unsigned int id)                               // Unload texture from GPU memory 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadTexture was called.");
+    rlUnloadTextureVk(rlGetHandle(id));
+    RL_FREE(rlGetHandle(id));
+    rlFreeId(id);
 }
 
 unsigned int rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShader was called.");
-	return 0;
+    return rlAcquireId(rlLoadShaderVk(code, type));
 }
 
 unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgram was called.");
-	return 0;
+    rlShaderProgram *p = (rlShaderProgram *)RL_MALLOC(sizeof(rlShaderProgram));
+    *p = rlLoadShaderProgramVk(vsCode, fsCode, 0, NULL);
+    return rlAcquireId(p);
 }
 
 unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId)  // Load shader program, using already loaded shader ids 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgramEx was called.");
-	return 0;
+    rlShaderProgram *p = (rlShaderProgram *)RL_MALLOC(sizeof(rlShaderProgram));
+    *p = rlLoadShaderProgramExVk(rlGetHandle(vsId), rlGetHandle(fsId), 0, NULL);
+    return rlAcquireId(p);
 }
 
 void rlUnloadShader(unsigned int id)                                      // Unload shader, loaded with rlLoadShader() 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShader was called.");
+    rlUnloadShaderVk(rlGetHandle(id));
+    rlFreeId(id);
 }
 
 void rlUnloadShaderProgram(unsigned int id)                               // Unload shader program 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShaderProgram was called.");
+    rlUnloadShaderProgramVk(rlGetHandle(id));
+    RL_FREE(rlGetHandle(id));
+    rlFreeId(id);
 }
 
 void rlSetShader(unsigned int id, int *locs)                              // Set shader currently active (id and locations) 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetShader was called.");
+    rlSetShaderVk(rlGetHandle(id));
 }
 
 int rlGetLocationUniform(unsigned int id, const char *uniformName)        // Get shader location uniform, requires shader program id 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
-	return 0;
+    return rlGetLocationUniformVk(rlGetHandle(id), uniformName);
 }
 
 unsigned int rlGetTextureIdDefault(void)          // Get default texture id 
 {
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetTextureIdDefault was called.");
-	return 0;
+    return RLVK.State.defaultTextureId;
 }
 
 int rlGetLocationAttrib(unsigned int id, const char *attribName)          // Get shader location attribute, requires shader program id 
