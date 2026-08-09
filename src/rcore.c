@@ -1290,7 +1290,7 @@ Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode)
 
 #ifdef VULKAN_EXCLUSIVE
     shader.id = RL_MALLOC(sizeof(rlShaderProgram));
-    *shader.id = rlLoadShaderProgram(vsCode, fsCode);
+    *shader.id = rlLoadShaderProgramVk(vsCode, fsCode, 0, NULL);
 #else
     shader.id = rlLoadShaderProgram(vsCode, fsCode);
 #endif
@@ -1355,7 +1355,7 @@ Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode)
 #ifdef VULKAN_EXCLUSIVE
 // Load shader from files and bind default locations
 // NOTE: If shader filename is NULL, using default vertex/fragment shaders
-Shader LoadShaderEx(const char *vsFileName, const char *fsFileName, unsigned int uniformCount, const ShaderUniform *uniforms)
+Shader LoadShaderVk(const char *vsFileName, const char *fsFileName, unsigned int uniformCount, const ShaderUniform *uniforms)
 {
     Shader shader = { 0 };
 
@@ -1367,7 +1367,7 @@ Shader LoadShaderEx(const char *vsFileName, const char *fsFileName, unsigned int
 
     if ((vShaderStr == NULL) && (fShaderStr == NULL)) TRACELOG(LOG_WARNING, "SHADER: Shader files provided are not valid, using default shader");
 
-    shader = LoadShaderFromMemoryEx(vShaderStr, fShaderStr, uniformCount, uniforms);
+    shader = LoadShaderFromMemoryVk(vShaderStr, fShaderStr, uniformCount, uniforms);
 
     UnloadFileText(vShaderStr);
     UnloadFileText(fShaderStr);
@@ -1376,12 +1376,12 @@ Shader LoadShaderEx(const char *vsFileName, const char *fsFileName, unsigned int
 }
 
 // Load shader from code strings and bind default locations
-Shader LoadShaderFromMemoryEx(const char *vsCode, const char *fsCode, unsigned int uniformCount, const ShaderUniform *uniforms)
+Shader LoadShaderFromMemoryVk(const char *vsCode, const char *fsCode, unsigned int uniformCount, const ShaderUniform *uniforms)
 {
     Shader shader = { 0 };
 
     shader.id = RL_MALLOC(sizeof(rlShaderProgram));
-    *shader.id = rlLoadShaderProgramExA(vsCode, fsCode, uniformCount, uniforms);
+    *shader.id = rlLoadShaderProgramVk(vsCode, fsCode, uniformCount, uniforms);
 
     if (shader.id == 0)
     {

@@ -180,7 +180,7 @@ bool WindowShouldClose(void)
 {
     if (WindowShouldCloseInternal())
     {
-        rlWaitIdle();
+        rlWaitIdleVk();
         return true;
     } else
     {

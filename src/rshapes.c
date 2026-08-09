@@ -50,7 +50,11 @@
 
 #if SUPPORT_MODULE_RSHAPES
 
+#ifndef PLATFORM_DESKTOP_VULKAN
 #include "rlgl.h"                   // OpenGL abstraction layer to OpenGL 1.1, 3.3+ or ES2
+#else
+#include "rlvk.h"
+#endif
 
 #include <math.h>       // Required for: sinf(), asinf(), cosf(), acosf(), sqrtf(), fabsf()
 #include <float.h>      // Required for: FLT_EPSILON

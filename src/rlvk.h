@@ -611,11 +611,19 @@ RLAPI void rlEnableTexture(unsigned int id);            // Enable texture
 RLAPI void rlDisableTexture(void);                      // Disable texture
 RLAPI void rlEnableTextureCubemap(unsigned int id);     // Enable texture cubemap
 RLAPI void rlDisableTextureCubemap(void);               // Disable texture cubemap
+#ifdef VULKAN_EXCLUSIVE
+#define rlTextureParameters rlTextureParametersVk
+#else
 RLAPI void rlTextureParameters(unsigned int id, int param, int value); // Set texture parameters (filter, wrap)
+#endif
 RLAPI void rlCubemapParameters(unsigned int id, int param, int value); // Set cubemap parameters (filter, wrap)
 
 // Shader state
+#ifdef VULKAN_EXCLUSIVE
+#define rlEnableShader rlEnableShaderVk
+#else
 RLAPI void rlEnableShader(unsigned int id);             // Enable shader program
+#endif
 RLAPI void rlDisableShader(void);                       // Disable shader program
 
 // Framebuffer state
@@ -677,13 +685,16 @@ RLAPI int rlGetFramebufferWidth(void);                  // Get default framebuff
 RLAPI void rlSetFramebufferHeight(int height);          // Set current framebuffer height
 RLAPI int rlGetFramebufferHeight(void);                 // Get default framebuffer height
 
+#ifdef VULKAN_EXCLUSIVE
+#define rlGetTextureIdDefault rlGetTextureIdDefaultVk
+#define rlGetShaderIdDefault rlGetShaderIdDefaultVk
+#else
 RLAPI unsigned int rlGetTextureIdDefault(void);         // Get default texture id
 RLAPI unsigned int rlGetShaderIdDefault(void);          // Get default shader id
+#endif
 RLAPI int *rlGetShaderLocsDefault(void);                // Get default shader locations
 
 // Render batch management
-// NOTE: rlvk provides a default render batch to behave like OpenGL 1.1 immediate mode
-// but this render batch API is exposed in case of custom batches are required
 RLAPI rlRenderBatch rlLoadRenderBatch(int numBuffers, int bufferElements); // Load a render batch system
 RLAPI void rlUnloadRenderBatch(rlRenderBatch batch);    // Unload render batch system
 RLAPI void rlDrawRenderBatch(rlRenderBatch *batch);     // Draw render batch data (Update->Draw->Reset)
@@ -691,14 +702,23 @@ RLAPI void rlSetRenderBatchActive(rlRenderBatch *batch); // Set the active rende
 RLAPI void rlDrawRenderBatchActive(void);               // Update and draw internal render batch
 RLAPI bool rlCheckRenderBatchLimit(int vCount);         // Check internal buffer overflow for a given number of vertex
 
+#ifdef VULKAN_EXCLUSIVE
+#define rlSetTexture rlSetTextureVk
+#else
 RLAPI void rlSetTexture(unsigned int id);               // Set current texture for render batch and check buffers limits
+#endif
 
 //------------------------------------------------------------------------------------------------------------------------
 
 // Vertex buffers management
 RLAPI unsigned int rlLoadVertexArray(void);             // Load vertex array (vao) if supported
+#ifdef VULKAN_EXCLUSIVE
+#define rlLoadVertexBuffer rlLoadVertexBufferVk
+#define rlLoadVertexBufferElement rlLoadVertexBufferElementVk
+#else
 RLAPI unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic); // Load a vertex buffer object
 RLAPI unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic); // Load vertex buffer elements object
+#endif
 RLAPI void rlUpdateVertexBuffer(unsigned int bufferId, const void *data, int dataSize, int offset); // Update vertex buffer object data on GPU buffer
 RLAPI void rlUpdateVertexBufferElements(unsigned int id, const void *data, int dataSize, int offset); // Update vertex buffer elements data on GPU buffer
 RLAPI void rlUnloadVertexArray(unsigned int vaoId);     // Unload vertex array (vao)
@@ -712,20 +732,37 @@ RLAPI void rlDrawVertexArrayInstanced(int offset, int count, int instances); // 
 RLAPI void rlDrawVertexArrayElementsInstanced(int offset, int count, const void *buffer, int instances); // Draw vertex array elements with instancing
 
 // Textures management
+#ifdef VULKAN_EXCLUSIVE
+#define rlLoadTexture rlLoadTextureVk
+#define rlLoadTextureDepth rlLoadTextureDepthVk
+#define rlLoadTextureCubemap rlLoadTextureCubemapVk
+#define rlUpdateTexture rlUpdateTextureVk
+#else
 RLAPI unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount); // Load texture data
 RLAPI unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer); // Load depth texture/renderbuffer (to be attached to fbo)
 RLAPI unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount); // Load texture cubemap data
 RLAPI void rlUpdateTexture(unsigned int id, int offsetX, int offsetY, int width, int height, int format, const void *data); // Update texture with new data on GPU
+#endif
 RLAPI void rlGetGlTextureFormats(int format, unsigned int *glInternalFormat, unsigned int *glFormat, unsigned int *glType); // Get OpenGL internal formats
 RLAPI const char *rlGetPixelFormatName(unsigned int format);              // Get name string for pixel format
+#ifdef VULKAN_EXCLUSIVE
+#define rlUnloadTexture rlUnloadTextureVk
+#define rlGenTextureMipmaps rlGenTextureMipmapsVk
+#define rlReadTexturePixels rlReadTexturePixelsVk
+#else
 RLAPI void rlUnloadTexture(unsigned int id);                              // Unload texture from GPU memory
 RLAPI void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps); // Generate mipmap data for selected texture
 RLAPI void *rlReadTexturePixels(unsigned int id, int width, int height, int format); // Read texture pixel data
+#endif
 RLAPI unsigned char *rlReadScreenPixels(int width, int height);           // Read screen pixel data (color buffer)
 
 // Framebuffer management (fbo)
 RLAPI unsigned int rlLoadFramebuffer(void);                               // Load an empty framebuffer
+#ifdef VULKAN_EXCLUSIVE
+#define rlFramebufferAttach rlFramebufferAttachVk
+#else
 RLAPI void rlFramebufferAttach(unsigned int id, unsigned int texId, int attachType, int texType, int mipLevel); // Attach texture/renderbuffer to a framebuffer
+#endif
 RLAPI bool rlFramebufferComplete(unsigned int id);                        // Verify framebuffer is complete
 RLAPI void rlUnloadFramebuffer(unsigned int id);                          // Delete framebuffer from GPU
 // WARNING: Copy and resize framebuffer functionality only defined for software backend
@@ -733,19 +770,37 @@ RLAPI void rlCopyFramebuffer(int x, int y, int width, int height, int format, vo
 RLAPI void rlResizeFramebuffer(int width, int height);                    // Resize internal framebuffer
 
 // Shaders management
+#ifdef VULKAN_EXCLUSIVE
+#define rlLoadShader rlLoadShaderVk
+#define rlLoadShaderProgram rlLoadShaderProgramVk
+#define rlLoadShaderProgramEx rlLoadShaderProgramExVk
+#else
 RLAPI unsigned int rlLoadShader(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
 RLAPI unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode); // Load shader from code strings
 RLAPI unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId); // Load shader program, using already loaded shader ids
+#endif
 RLAPI unsigned int rlLoadShaderProgramCompute(unsigned int csId);               // Load compute shader program
-RLAPI void rlUnloadShader(unsigned int id);                                     // Unload shader, loaded with rlLoadShader()
-RLAPI void rlUnloadShaderProgram(unsigned int id);                              // Unload shader program
-RLAPI int rlGetLocationUniform(unsigned int id, const char *uniformName);       // Get shader location uniform, requires shader program id
+#ifdef VULKAN_EXCLUSIVE
+#define rlUnloadShader rlUnloadShaderVk
+#define rlUnloadShaderProgram rlUnloadShaderProgramVk
+#define rlGetLocationUniform rlGetLocationUniformVk
+#define rlGetLocationAttrib rlGetLocationAttribVk
+#else
+RLAPI void rlUnloadShader(rlvkShaderModule shaderModule);                                     // Unload shader, loaded with rlLoadShader()
+RLAPI void rlUnloadShaderProgram(const rlShaderProgram *program);                              // Unload shader program
+RLAPI int rlGetLocationUniform(const rlShaderProgram *program, const char *uniformName);       // Get shader location uniform, requires shader program id
 RLAPI int rlGetLocationAttrib(unsigned int id, const char *attribName);         // Get shader location attribute, requires shader program id
+#endif
 RLAPI void rlSetUniform(int locIndex, const void *value, int uniformType, int count); // Set shader value uniform
 RLAPI void rlSetUniformMatrix(int locIndex, Matrix mat);                        // Set shader value matrix
 RLAPI void rlSetUniformMatrices(int locIndex, const Matrix *mat, int count);    // Set shader value matrices
+#ifdef VULKAN_EXCLUSIVE
+#define rlSetUniformSampler rlSetUniformSamplerVk
+#define rlSetShader rlSetShaderVk
+#else
 RLAPI void rlSetUniformSampler(int locIndex, unsigned int textureId);           // Set shader value sampler
 RLAPI void rlSetShader(unsigned int id, int *locs);                             // Set shader currently active (id and locations)
+#endif
 
 // Compute shader management
 RLAPI void rlComputeShaderDispatch(unsigned int groupX, unsigned int groupY, unsigned int groupZ); // Dispatch compute shader (equivalent to *draw* for graphics pipeline)
@@ -804,6 +859,15 @@ RLAPI void rlUnloadBufferVk(const rlBuffer *buffer);    // Unload buffer object
 // Textures management
 RLAPI rlTexture rlLoadTextureVk(const void *data, int width, int height, int format, int mipmapCount); // Load texture data
 RLAPI void rlUnloadTextureVk(const rlTexture *texture);                              // Unload texture from GPU memory
+RLAPI void rlGenTextureMipmapsVk(const rlTexture *texture, int width, int height, int format, int *mipmaps); // Generate mipmap data for selected texture
+RLAPI rlTexture rlLoadTextureDepthVk(int width, int height, bool useRenderBuffer); // Load depth texture/renderbuffer (to be attached to fbo)
+RLAPI rlTexture rlLoadTextureCubemapVk(const void *data, int size, int format, int mipmapCount); // Load texture cubemap data
+RLAPI void rlUpdateTextureVk(const rlTexture *texture, int offsetX, int offsetY, int width, int height, int format, const void *data); // Update texture with new data on GPU
+RLAPI void *rlReadTexturePixelsVk(const rlTexture *texture, int width, int height, int format); // Read texture pixel data
+
+RLAPI void rlTextureParametersVk(const rlTexture *texture, int param, int value); // Set texture parameters (filter, wrap)
+
+RLAPI void rlFramebufferAttachVk(unsigned int id, const rlTexture *texture, int attachType, int texType, int mipLevel); // Attach texture/renderbuffer to a framebuffer
 
 // Shaders management
 RLAPI rlvkShaderModule rlLoadShaderVk(const char *code, int type);                    // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
@@ -815,7 +879,8 @@ RLAPI void rlUnloadShaderProgramVk(const rlShaderProgram *program);             
 
 // TODO: May get rid of this
 RLAPI int rlGetLocationUniformVk(const rlShaderProgram *program, const char *uniformName);       // Get shader location uniform, requires shader program id
-
+RLAPI int rlGetLocationAttribVk(const rlShaderProgram *program, const char *attribName);         // Get shader location attribute, requires shader program id
+RLAPI void rlSetUniformSamplerVk(int locIndex, const rlTexture* texture);           // Set shader value sampler
 RLAPI void rlSetShaderVk(rlShaderProgram *program);                             // Set shader currently active (id and locations)
 
 #if defined(__cplusplus)
@@ -1785,7 +1850,7 @@ void rlDisableTextureCubemap(void)                // Disable texture cubemap
     TRACELOG(RL_LOG_TRACE, "rlvk function rlDisableTextureCubemap was called.");
 }
 
-void rlTextureParameters(unsigned int id, int param, int value)  // Set texture parameters (filter, wrap) 
+void rlTextureParametersVk(const rlTexture *texture, int param, int value)  // Set texture parameters (filter, wrap) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlTextureParameters was called.");
 }
@@ -1793,11 +1858,6 @@ void rlTextureParameters(unsigned int id, int param, int value)  // Set texture 
 void rlCubemapParameters(unsigned int id, int param, int value)  // Set cubemap parameters (filter, wrap) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlCubemapParameters was called.");
-}
-
-void rlEnableShader(unsigned int id)              // Enable shader program 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableShader was called.");
 }
 
 void rlEnableShaderVk(const rlShaderProgram *program)              // Enable shader program 
@@ -2155,7 +2215,7 @@ static rlBuffer rlLoadBufferVk(const void* data, int size, bool dynamic, VkBuffe
     return buffer;
 }
 
-static void rlUnloadBuffer(const rlBuffer *buffer)
+void rlUnloadBufferVk(const rlBuffer *buffer)
 {
     if (buffer->mappedData)
     {
@@ -3149,7 +3209,7 @@ void rlvkClose(void)                              // De-initialize rlvk (instanc
 {
     for (uint32_t i = 0; i < RL_UNIFORM_BUFFER_COUNT; i++)
     {
-        rlUnloadBuffer(&RLVK.uniformBuffers[i]);
+        rlUnloadBufferVk(&RLVK.uniformBuffers[i]);
     }
 
     vkDestroyDescriptorSetLayout(RLVK.device, RLVK.textureDescriptorSetLayout, NULL);
@@ -3252,25 +3312,10 @@ int rlGetFramebufferHeight(void)                  // Get default framebuffer hei
 	return 0;
 }
 
-unsigned int rlGetTextureIdDefault(void)          // Get default texture id 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetTextureIdDefault was called.");
-	return 0;
-}
-
 rlTexture *rlGetTextureIdDefaultVk(void)          // Get default texture id 
 {
     return &RLVK.State.defaultTexture;
 }
-
-#ifndef VULKAN_EXCLUSIVE
-unsigned int rlGetShaderIdDefault(void)           // Get default shader id 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderIdDefault was called.");
-
-	return RLVK.State.defaultShaderId;
-}
-#endif
 
 rlShaderProgram *rlGetShaderIdDefaultVk(void)           // Get default shader id 
 {
@@ -3636,11 +3681,6 @@ bool rlCheckRenderBatchLimit(int vCount)          // Check internal buffer overf
     return overflow;
 }
 
-void rlSetTexture(unsigned int id)                // Set current texture for render batch and check buffers limits 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetTexture was called.");
-}
-
 void rlSetTextureVk(const rlTexture *texture)                // Set current texture for render batch and check buffers limits 
 {
     if (texture == NULL)
@@ -3694,21 +3734,9 @@ unsigned int rlLoadVertexArray(void)              // Load vertex array (vao) if 
 	return 0;
 }
 
-unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBuffer was called.");
-	return 0;
-}
-
 rlBuffer rlLoadVertexBufferVk(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
 {
     return rlLoadBufferVk(buffer, size, dynamic, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-}
-
-unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBufferElement was called.");
-	return 0;
 }
 
 rlBuffer rlLoadVertexBufferElementVk(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
@@ -3813,12 +3841,6 @@ static VkFormat rlGetVulkanFormat(rlPixelFormat format)
         case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8: return VK_FORMAT_R8G8B8_UNORM;
         case RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8: return VK_FORMAT_R8G8B8A8_UNORM;
     }
-}
-
-unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount)  // Load texture data 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTexture was called.");
-	return 0;
 }
 
 rlTexture rlLoadTextureVk(const void *data, int width, int height, int format, int mipmapCount)  // Load texture data 
@@ -4099,19 +4121,19 @@ rlTexture rlLoadTextureVk(const void *data, int width, int height, int format, i
     return texture;
 }
 
-unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer)  // Load depth texture/renderbuffer (to be attached to fbo) 
+rlTexture rlLoadTextureDepthVk(int width, int height, bool useRenderBuffer)  // Load depth texture/renderbuffer (to be attached to fbo) 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureDepth was called.");
-	return 0;
+	return (rlTexture){ 0 };
 }
 
-unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount)  // Load texture cubemap data 
+rlTexture rlLoadTextureCubemapVk(const void *data, int size, int format, int mipmapCount)  // Load texture cubemap data 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureCubemap was called.");
-	return 0;
+	return (rlTexture){ 0 };
 }
 
-void rlUpdateTexture(unsigned int id, int offsetX, int offsetY, int width, int height, int format, const void *data)  // Update texture with new data on GPU 
+void rlUpdateTextureVk(const rlTexture *texture, int offsetX, int offsetY, int width, int height, int format, const void *data)  // Update texture with new data on GPU 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateTexture was called.");
 }
@@ -4152,11 +4174,6 @@ const char *rlGetPixelFormatName(unsigned int format)               // Get name 
     }
 }
 
-void rlUnloadTexture(unsigned int id)                               // Unload texture from GPU memory 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadTexture was called.");
-}
-
 void rlUnloadTextureVk(const rlTexture *texture)                               // Unload texture from GPU memory 
 {
     vkDestroySampler(RLVK.device, texture->sampler, NULL);
@@ -4164,12 +4181,12 @@ void rlUnloadTextureVk(const rlTexture *texture)                               /
     vmaDestroyImage(RLVK.allocator, texture->image, texture->allocation);
 }
 
-void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps)  // Generate mipmap data for selected texture 
+void rlGenTextureMipmapsVk(const rlTexture *texture, int width, int height, int format, int *mipmaps)  // Generate mipmap data for selected texture 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGenTextureMipmaps was called.");
 }
 
-void *rlReadTexturePixels(unsigned int id, int width, int height, int format)  // Read texture pixel data 
+void *rlReadTexturePixelsVk(const rlTexture *texture, int width, int height, int format) // Read texture pixel data 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlReadTexturePixels was called.");
 	return NULL;
@@ -4187,7 +4204,7 @@ unsigned int rlLoadFramebuffer(void)                                // Load an e
 	return 0;
 }
 
-void rlFramebufferAttach(unsigned int id, unsigned int texId, int attachType, int texType, int mipLevel)  // Attach texture/renderbuffer to a framebuffer 
+void rlFramebufferAttachVk(unsigned int id, const rlTexture *texture, int attachType, int texType, int mipLevel)  // Attach texture/renderbuffer to a framebuffer 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlFramebufferAttach was called.");
 }
@@ -4212,12 +4229,6 @@ void rlCopyFramebuffer(int x, int y, int width, int height, int format, void *pi
 void rlResizeFramebuffer(int width, int height)                     // Resize internal framebuffer 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlResizeFramebuffer was called.");
-}
-
-unsigned int rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER) 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShader was called.");
-	return 0;
 }
 
 VkShaderModule rlLoadShaderVk(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
@@ -4258,12 +4269,6 @@ VkShaderModule rlLoadShaderVk(const char *code, int type)                     //
     return shaderModule;
 }
 
-unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgram was called.");
-	return 0;
-}
-
 rlShaderProgram rlLoadShaderProgramVk(const char *vsCode, const char *fsCode, uint32_t uniformCount, const rlShaderUniform *uniforms)  // Load shader from code strings 
 {   
     rlShaderProgram program = { 0 };
@@ -4299,12 +4304,6 @@ rlShaderProgram rlLoadShaderProgramVk(const char *vsCode, const char *fsCode, ui
     }
 
     return program;
-}
-
-unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId)  // Load shader program, using already loaded shader ids 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgramEx was called.");
-	return 0;
 }
 
 static uint32_t rlAlign(uint32_t n, uint32_t m) // Returns the smallest multiple of $m$ greater than or equal to $n$.
@@ -4659,19 +4658,9 @@ unsigned int rlLoadShaderProgramCompute(unsigned int csId)                // Loa
 	return 0;
 }
 
-void rlUnloadShader(unsigned int id)                                      // Unload shader, loaded with rlLoadShader() 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShader was called.");
-}
-
 void rlUnloadShaderVk(VkShaderModule shaderModule)                                      // Unload shader, loaded with rlLoadShader() 
 {
     vkDestroyShaderModule(RLVK.device, shaderModule, NULL);
-}
-
-void rlUnloadShaderProgram(unsigned int id)                               // Unload shader program 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShaderProgram was called.");
 }
 
 void rlUnloadShaderProgramVk(const rlShaderProgram *program)                               // Unload shader program 
@@ -4682,7 +4671,7 @@ void rlUnloadShaderProgramVk(const rlShaderProgram *program)                    
     }
     if (program->uniformCount > 0)
     {
-        rlUnloadBuffer(&program->uniformBuffer);
+        rlUnloadBufferVk(&program->uniformBuffer);
     }
 
     RL_FREE(program->uniformBufferData);
@@ -4693,12 +4682,6 @@ void rlUnloadShaderProgramVk(const rlShaderProgram *program)                    
     vkDestroyPipelineLayout(RLVK.device, program->pipelineLayout, 0);
     vkDestroyDescriptorPool(RLVK.device, program->descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(RLVK.device, program->descriptorSetLayout, NULL);
-}
-
-int rlGetLocationUniform(unsigned int id, const char *uniformName)        // Get shader location uniform, requires shader program id 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
-	return 0;
 }
 
 int rlGetLocationUniformVk(const rlShaderProgram *program, const char *uniformName)        // Get shader location uniform, requires shader program id 
@@ -4713,7 +4696,7 @@ int rlGetLocationUniformVk(const rlShaderProgram *program, const char *uniformNa
     return -1;
 }
 
-int rlGetLocationAttrib(unsigned int id, const char *attribName)          // Get shader location attribute, requires shader program id 
+int rlGetLocationAttribVk(const rlShaderProgram *program, const char *attribName)          // Get shader location attribute, requires shader program id 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationAttrib was called.");
 	return 0;
@@ -4768,14 +4751,9 @@ void rlSetUniformMatrices(int locIndex, const Matrix *matrices, int count)     /
     RL_FREE(mat);
 }
 
-void rlSetUniformSampler(int locIndex, unsigned int textureId)            // Set shader value sampler 
+void rlSetUniformSamplerVk(int locIndex, const rlTexture *texture)            // Set shader value sampler 
 {
     TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformSampler was called.");
-}
-
-void rlSetShader(unsigned int id, int *locs)                              // Set shader currently active (id and locations) 
-{
-    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetShader was called.");
 }
 
 void rlSetShaderVk(rlShaderProgram *program)                              // Set shader currently active (id and locations) 
@@ -4922,5 +4900,143 @@ void rlLoadDrawQuad(void)      // Load and draw a qua
 void rlWaitIdleVk(void) {
     vkDeviceWaitIdle(RLVK.device);
 }
+
+#ifndef VULKAN_EXCLUSIVE
+
+unsigned int rlGetShaderIdDefault(void)           // Get default shader id 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetShaderIdDefault was called.");
+
+	return RLVK.State.defaultShaderId;
+}
+
+void rlSetTexture(unsigned int id)                // Set current texture for render batch and check buffers limits 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetTexture was called.");
+}
+
+unsigned int rlLoadVertexBuffer(const void *buffer, int size, bool dynamic)  // Load a vertex buffer object 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBuffer was called.");
+	return 0;
+}
+
+unsigned int rlLoadVertexBufferElement(const void *buffer, int size, bool dynamic)  // Load vertex buffer elements object 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadVertexBufferElement was called.");
+	return 0;
+}
+
+unsigned int rlLoadTexture(const void *data, int width, int height, int format, int mipmapCount)  // Load texture data 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTexture was called.");
+	return 0;
+}
+
+void rlEnableShader(unsigned int id)              // Enable shader program 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlEnableShader was called.");
+}
+
+void rlUnloadTexture(unsigned int id)                               // Unload texture from GPU memory 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadTexture was called.");
+}
+
+unsigned int rlLoadShader(const char *code, int type)                     // Load (compile) shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER) 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShader was called.");
+	return 0;
+}
+
+unsigned int rlLoadShaderProgram(const char *vsCode, const char *fsCode)  // Load shader from code strings 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgram was called.");
+	return 0;
+}
+
+unsigned int rlLoadShaderProgramEx(unsigned int vsId, unsigned int fsId)  // Load shader program, using already loaded shader ids 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadShaderProgramEx was called.");
+	return 0;
+}
+
+void rlUnloadShader(unsigned int id)                                      // Unload shader, loaded with rlLoadShader() 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShader was called.");
+}
+
+void rlUnloadShaderProgram(unsigned int id)                               // Unload shader program 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUnloadShaderProgram was called.");
+}
+
+void rlSetShader(unsigned int id, int *locs)                              // Set shader currently active (id and locations) 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetShader was called.");
+}
+
+int rlGetLocationUniform(unsigned int id, const char *uniformName)        // Get shader location uniform, requires shader program id 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationUniform was called.");
+	return 0;
+}
+
+unsigned int rlGetTextureIdDefault(void)          // Get default texture id 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetTextureIdDefault was called.");
+	return 0;
+}
+
+int rlGetLocationAttrib(unsigned int id, const char *attribName)          // Get shader location attribute, requires shader program id 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGetLocationAttrib was called.");
+	return 0;
+}
+
+void rlSetUniformSampler(int locIndex, unsigned int textureId)            // Set shader value sampler 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlSetUniformSampler was called.");
+}
+
+void *rlReadTexturePixels(unsigned int id, int width, int height, int format)  // Read texture pixel data 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlReadTexturePixels was called.");
+	return NULL;
+}
+
+unsigned int rlLoadTextureDepth(int width, int height, bool useRenderBuffer)  // Load depth texture/renderbuffer (to be attached to fbo) 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureDepth was called.");
+	return 0;
+}
+
+unsigned int rlLoadTextureCubemap(const void *data, int size, int format, int mipmapCount)  // Load texture cubemap data 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlLoadTextureCubemap was called.");
+	return 0;
+}
+
+void rlUpdateTexture(unsigned int id, int offsetX, int offsetY, int width, int height, int format, const void *data)  // Update texture with new data on GPU 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlUpdateTexture was called.");
+}
+
+void rlFramebufferAttach(unsigned int id, unsigned int texId, int attachType, int texType, int mipLevel)  // Attach texture/renderbuffer to a framebuffer 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlFramebufferAttach was called.");
+}
+
+void rlGenTextureMipmaps(unsigned int id, int width, int height, int format, int *mipmaps)  // Generate mipmap data for selected texture 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlGenTextureMipmaps was called.");
+}
+
+void rlTextureParameters(unsigned int id, int param, int value)  // Set texture parameters (filter, wrap) 
+{
+    TRACELOG(RL_LOG_TRACE, "rlvk function rlTextureParameters was called.");
+}
+
+#endif
 
 #endif // RLVK_IMPLEMENTATION
